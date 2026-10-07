@@ -265,14 +265,16 @@ impl Explorer {
                 self.world.record_neighbors(self.current_planet_id, neighbors);
             }
 
-            _ => {
-                logging::unknown_message(self.id);
-            }
+
             OrchestratorToExplorer::BagContentRequest => {
                 let _ = self.to_orchestrator.send(ExplorerToOrchestrator::BagContentResponse {
                     explorer_id: self.id,
                     bag_content: self.bag.contents(),
                 });
+            }
+
+            _ => {
+                logging::unknown_message(self.id);
             }
         }
     }

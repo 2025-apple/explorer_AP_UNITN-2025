@@ -5,13 +5,11 @@ use crossbeam_channel::unbounded;
 use common_game::components::resource::{BasicResourceType, GenericResource};
 use common_game::protocols::orchestrator_explorer::{ExplorerToOrchestrator, OrchestratorToExplorer};
 use common_game::protocols::planet_explorer::{ExplorerToPlanet, PlanetToExplorer};
-use explorer_eco::create_explorer;
-
+use explorer_eco::{create_explorer, BagContent};
 #[test]
 fn supported_resource_request_reaches_planet_and_back() {
     let (tx_orch, rx_orch) = unbounded::<OrchestratorToExplorer>();
-    let (tx_to_orch, rx_from_explorer) = unbounded::<ExplorerToOrchestrator<GenericResource>>();
-    let (tx_planet, rx_planet_side) = unbounded::<ExplorerToPlanet>();
+    let (tx_to_orch, rx_from_explorer) = unbounded::<ExplorerToOrchestrator<BagContent>>();    let (tx_planet, rx_planet_side) = unbounded::<ExplorerToPlanet>();
     let (tx_reply, rx_planet) = unbounded::<PlanetToExplorer>();
 
     let planet = thread::spawn(move || {
