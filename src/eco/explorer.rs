@@ -9,7 +9,7 @@ use rand::rngs::StdRng;
 use rand::{RngExt, SeedableRng};
 
 use common_game::components::resource::{
-    BasicResourceType, ComplexResourceRequest, ComplexResourceType, GenericResource,
+    BasicResourceType, ComplexResourceRequest, ComplexResourceType, GenericResource, ResourceType,
 };
 use common_game::protocols::orchestrator_explorer::{
     ExplorerToOrchestrator, OrchestratorToExplorer,
@@ -26,12 +26,15 @@ use super::time::EconomyClock;
 use super::wallet::Wallet;
 use super::world::WorldModel;
 
+/// Eco's bag report: resource type and how many.
+pub type BagContent = Vec<(ResourceType, usize)>;
+
 #[must_use]
 pub fn create_explorer(
     explorer_id: ID,
     starting_planet_id: ID,
     rx_orchestrator: Receiver<OrchestratorToExplorer>,
-    tx_orchestrator: Sender<ExplorerToOrchestrator<GenericResource>>,
+    tx_orchestrator: Sender<ExplorerToOrchestrator<BagContent>>,
     rx_planet: Receiver<PlanetToExplorer>,
     tx_planet: Sender<ExplorerToPlanet>,
 ) -> Explorer {
@@ -45,7 +48,7 @@ pub fn create_explorer_oracle(
     explorer_id: ID,
     starting_planet_id: ID,
     rx_orchestrator: Receiver<OrchestratorToExplorer>,
-    tx_orchestrator: Sender<ExplorerToOrchestrator<GenericResource>>,
+    tx_orchestrator: Sender<ExplorerToOrchestrator<BagContent>>,
     rx_planet: Receiver<PlanetToExplorer>,
     tx_planet: Sender<ExplorerToPlanet>,
 ) -> Explorer {
@@ -71,7 +74,7 @@ pub struct Explorer {
     id: ID,
 
     from_orchestrator: Receiver<OrchestratorToExplorer>,
-    to_orchestrator: Sender<ExplorerToOrchestrator<GenericResource>>,
+    to_orchestrator: Sender<ExplorerToOrchestrator<BagContent>>,
 
     planet_link: PlanetLink,
     current_planet_id: ID,
@@ -95,7 +98,7 @@ impl Explorer {
         id: ID,
         starting_planet_id: ID,
         from_orchestrator: Receiver<OrchestratorToExplorer>,
-        to_orchestrator: Sender<ExplorerToOrchestrator<GenericResource>>,
+        to_orchestrator: Sender<ExplorerToOrchestrator<BagContent>>,
         from_planet: Receiver<PlanetToExplorer>,
         to_planet: Sender<ExplorerToPlanet>,
         blind_mode: bool,
@@ -264,6 +267,12 @@ impl Explorer {
 
             _ => {
                 logging::unknown_message(self.id);
+            }
+            OrchestratorToExplorer::BagContentRequest => {
+                let _ = self.to_orchestrator.send(ExplorerToOrchestrator::BagContentResponse {
+                    explorer_id: self.id,
+                    bag_content: self.bag.contents(),
+                });
             }
         }
     }

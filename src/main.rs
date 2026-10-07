@@ -1,4 +1,4 @@
-use explorer_eco::create_explorer;
+
 
 use std::thread;
 use std::time::Duration;
@@ -56,5 +56,3 @@ fn main() {
     drop(tx_to_explorer);
     let _ = listener.join();
 }
-
-//to check git function

@@ -33,4 +33,4 @@ mod time;
 mod wallet;
 mod world;
 
-pub use explorer::{create_explorer, create_explorer_oracle, Explorer};
+pub use explorer::{create_explorer, create_explorer_oracle, Explorer,BagContent};

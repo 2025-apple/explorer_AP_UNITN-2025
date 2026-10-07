@@ -3,14 +3,23 @@
 
 use std::collections::{HashMap, HashSet};
 
-use common_game::components::resource::{BasicResourceType, ComplexResourceType, GenericResource};
-
+use common_game::components::resource::{BasicResourceType, ComplexResourceType, GenericResource, ResourceType};
 #[derive(Debug, Default)]
 pub struct Bag {
     resources: Vec<GenericResource>,
 }
 
 impl Bag {
+
+    /// Counted snapshot of the bag, for BagContentResponse.
+    /// Never hands out the real resources; they can't be cloned.
+    pub fn contents(&self) -> Vec<(ResourceType, usize)> {
+        let mut counts: HashMap<ResourceType, usize> = HashMap::new();
+        for r in &self.resources {
+            *counts.entry(r.get_type()).or_insert(0) += 1;
+        }
+        counts.into_iter().collect()
+    }
     /// Removes and returns the first basic resource of the given type, if any.
     pub fn take_basic(&mut self, want: BasicResourceType) -> Option<GenericResource> {
         let idx = self.resources.iter().position(|r| match r {
