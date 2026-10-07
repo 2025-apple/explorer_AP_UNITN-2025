@@ -6,6 +6,7 @@ use std::time::Duration;
 use crossbeam_channel::unbounded;
 
 use common_game::protocols::orchestrator_explorer::OrchestratorToExplorer;
+use common_game::protocols::planet_explorer::{ExplorerToPlanet, PlanetToExplorer};
 use common_game::utils::ID;
 
 fn main() {
@@ -19,11 +20,16 @@ fn main() {
     let explorer_id: ID = 1;
     let starting_planet_id: ID = 100;
 
-    let explorer = create_explorer(
+    let (tx_planet, _rx_planet_side) = unbounded::<ExplorerToPlanet>();
+    let (_tx_planet_reply, rx_planet) = unbounded::<PlanetToExplorer>();
+
+    let explorer = explorer_eco::create_explorer(
         explorer_id,
         starting_planet_id,
         rx_from_orchestrator,
         tx_to_orchestrator,
+        rx_planet,
+        tx_planet,
     );
 
     // Eco runs its own loop on its own thread, exactly like the real

@@ -32,10 +32,12 @@ pub fn create_explorer(
     starting_planet_id: ID,
     rx_orchestrator: Receiver<OrchestratorToExplorer>,
     tx_orchestrator: Sender<ExplorerToOrchestrator<GenericResource>>,
+    rx_planet: Receiver<PlanetToExplorer>,
+    tx_planet: Sender<ExplorerToPlanet>,
 ) -> Explorer {
     // Blind mode by default — the realistic, harder AI behavior. Use
     // `create_explorer_oracle` for a baseline/testing build.
-    Explorer::new(explorer_id, starting_planet_id, rx_orchestrator, tx_orchestrator, true)
+    Explorer::new(explorer_id, starting_planet_id, rx_orchestrator, tx_orchestrator, rx_planet, tx_planet, true)
 }
 
 #[must_use]
@@ -44,8 +46,10 @@ pub fn create_explorer_oracle(
     starting_planet_id: ID,
     rx_orchestrator: Receiver<OrchestratorToExplorer>,
     tx_orchestrator: Sender<ExplorerToOrchestrator<GenericResource>>,
+    rx_planet: Receiver<PlanetToExplorer>,
+    tx_planet: Sender<ExplorerToPlanet>,
 ) -> Explorer {
-    Explorer::new(explorer_id, starting_planet_id, rx_orchestrator, tx_orchestrator, false)
+    Explorer::new(explorer_id, starting_planet_id, rx_orchestrator, tx_orchestrator, rx_planet, tx_planet, false)
 }
 
 /// Eco's link to whichever planet it's currently on. `None` until the
@@ -92,6 +96,8 @@ impl Explorer {
         starting_planet_id: ID,
         from_orchestrator: Receiver<OrchestratorToExplorer>,
         to_orchestrator: Sender<ExplorerToOrchestrator<GenericResource>>,
+        from_planet: Receiver<PlanetToExplorer>,
+        to_planet: Sender<ExplorerToPlanet>,
         blind_mode: bool,
     ) -> Self {
         let mut world = WorldModel::default();
@@ -101,7 +107,10 @@ impl Explorer {
             id,
             from_orchestrator,
             to_orchestrator,
-            planet_link: PlanetLink::default(),
+            planet_link: PlanetLink {
+                to_planet: Some(to_planet),
+                from_planet: Some(from_planet),
+            },
             current_planet_id: starting_planet_id,
             bag: Bag::default(),
             ai_active: false,
@@ -192,10 +201,10 @@ impl Explorer {
                 match sender_to_new_planet {
                     Some(new_to_planet) => {
                         logging::moved_to_planet(self.id, planet_id);
-                        self.planet_link = PlanetLink {
-                            to_planet: Some(new_to_planet),
-                            from_planet: None, // see module docs: orchestrator never delivers this
-                        };
+                        self.planet_link.to_planet = Some(new_to_planet);
+                        if let Some(rx) = &self.planet_link.from_planet {
+                            while rx.try_recv().is_ok() {}
+                        }
                         self.current_planet_id = planet_id;
                         self.world.visited.insert(planet_id);
                     }
