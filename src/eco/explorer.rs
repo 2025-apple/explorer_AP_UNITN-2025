@@ -6,7 +6,7 @@ use std::time::Duration;
 
 use crossbeam_channel::{Receiver, Sender, TryRecvError};
 use rand::rngs::StdRng;
-use rand::{Rng, RngExt, SeedableRng};
+use rand::{RngExt, SeedableRng};
 
 use common_game::components::resource::{
     BasicResourceType, ComplexResourceRequest, ComplexResourceType, GenericResource,

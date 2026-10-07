@@ -1,4 +1,4 @@
-mod eco;
+use explorer_eco::create_explorer;
 
 use std::thread;
 use std::time::Duration;
@@ -19,7 +19,7 @@ fn main() {
     let explorer_id: ID = 1;
     let starting_planet_id: ID = 100;
 
-    let explorer = eco::create_explorer(
+    let explorer = create_explorer(
         explorer_id,
         starting_planet_id,
         rx_from_orchestrator,
