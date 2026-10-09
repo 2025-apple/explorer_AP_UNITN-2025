@@ -1,3 +1,5 @@
+use crate::eco::wallet::Wallet;
+
 #[test]
 fn charge_and_credit_move_the_balance() {
     let mut w = Wallet::new(120);

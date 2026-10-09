@@ -1,3 +1,11 @@
+use crate::eco::regime::EconomyRegime;
+use crate::eco::time::CYCLES_PER_DAY;
+
+fn row(r: EconomyRegime) -> (u32, u32, u32, u32, u32) {
+    let c = r.costs();
+    (c.mv, c.stay, c.mine, c.combine, c.daily_income)
+}
+
 #[test]
 fn price_tables_match_design() {
     // (move, stay, mine, combine, daily income)
@@ -25,3 +33,4 @@ fn a_day_of_cheapest_actions_is_always_affordable() {
             "{r:?}: cheapest day costs more than income"
         );
     }
+}

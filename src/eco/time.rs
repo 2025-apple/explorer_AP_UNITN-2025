@@ -14,8 +14,8 @@ pub const CYCLES_PER_DAY: u8 = 5;
 /// Flourish/Recession durations are "unknown" per spec; these are the
 /// ranges Eco's own RNG draws from at transition time. Tune freely — the
 /// spec only constrains Neutral's length (always 5 days).
-const FLOURISH_DAYS_RANGE: (u32, u32) = (3, 8);
-const RECESSION_DAYS_RANGE: (u32, u32) = (2, 6);
+pub(super) const FLOURISH_DAYS_RANGE: (u32, u32) = (3, 8);
+pub(super) const RECESSION_DAYS_RANGE: (u32, u32) = (2, 6);
 
 #[derive(Debug, Clone)]
 pub struct EconomyClock {
