@@ -4,7 +4,7 @@
 
 use std::time::{Duration, Instant};
 
-use crossbeam_channel::{Receiver, Sender, TryRecvError};
+use crossbeam_channel::{Receiver, RecvTimeoutError, Sender, TryRecvError};
 use rand::rngs::StdRng;
 use rand::{RngExt, SeedableRng};
 
@@ -14,7 +14,10 @@ use common_game::components::resource::{
 use common_game::protocols::orchestrator_explorer::{
     ExplorerToOrchestrator, OrchestratorToExplorer,
 };
-use common_game::protocols::planet_explorer::{ExplorerToPlanet, PlanetToExplorer};
+use common_game::protocols::planet_explorer::{
+    ExplorerToPlanet, ExplorerToPlanetKind, PlanetToExplorer, PlanetToExplorerKind,
+};
+
 use common_game::utils::ID;
 
 use super::bag::Bag;
@@ -70,6 +73,41 @@ impl PlanetLink {
     }
 }
 
+/// How long Eco waits for one planet reply.
+const PLANET_REPLY_TIMEOUT: Duration = Duration::from_secs(2);
+
+/// Why a planet request produced no usable answer. All of these mean
+/// "we learned nothing": callers must NOT record any knowledge.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub(super) enum PlanetError {
+    NoLink,  // no channel to a planet yet
+    Gone,    // channel closed
+    NoReply, // timed out
+    Stopped, // planet answered `Stopped`
+}
+
+impl PlanetError {
+    fn describe(self) -> &'static str {
+        match self {
+            PlanetError::NoLink => "not currently linked to a planet",
+            PlanetError::Gone => "planet unreachable",
+            PlanetError::NoReply => "no response from planet",
+            PlanetError::Stopped => "planet is stopped",
+        }
+    }
+}
+
+/// Which reply kind answers which request kind.
+fn reply_kind(request: ExplorerToPlanetKind) -> PlanetToExplorerKind {
+    match request {
+        ExplorerToPlanetKind::SupportedResourceRequest => PlanetToExplorerKind::SupportedResourceResponse,
+        ExplorerToPlanetKind::SupportedCombinationRequest => PlanetToExplorerKind::SupportedCombinationResponse,
+        ExplorerToPlanetKind::GenerateResourceRequest => PlanetToExplorerKind::GenerateResourceResponse,
+        ExplorerToPlanetKind::CombineResourceRequest => PlanetToExplorerKind::CombineResourceResponse,
+        ExplorerToPlanetKind::AvailableEnergyCellRequest => PlanetToExplorerKind::AvailableEnergyCellResponse,
+    }
+}
+
 pub struct Explorer {
     id: ID,
 
@@ -77,7 +115,7 @@ pub struct Explorer {
     to_orchestrator: Sender<ExplorerToOrchestrator<BagContent>>,
 
     planet_link: PlanetLink,
-    current_planet_id: ID,
+    pub(super) current_planet_id: ID,
 
     bag: Bag,
     ai_active: bool,
@@ -87,7 +125,7 @@ pub struct Explorer {
     pub(super) clock: EconomyClock,
     pub(super) wallet: Wallet,
     estimator: RegimeEstimator,
-    world: WorldModel,
+    pub(super) world: WorldModel,
     pub(super) task: Option<ComplexResourceType>,
     blind_mode: bool,
     rng: StdRng,
@@ -230,7 +268,7 @@ impl Explorer {
             }
 
             OrchestratorToExplorer::SupportedResourceRequest => {
-                let supported_resources = self.query_supported_resources();
+                let supported_resources = self.query_supported_resources().unwrap_or_default();
                 let _ = self.to_orchestrator.send(ExplorerToOrchestrator::SupportedResourceResult {
                     explorer_id: self.id,
                     supported_resources,
@@ -238,7 +276,7 @@ impl Explorer {
             }
 
             OrchestratorToExplorer::SupportedCombinationRequest => {
-                let combination_list = self.query_supported_combinations();
+                let combination_list = self.query_supported_combinations().unwrap_or_default();
                 let _ = self.to_orchestrator.send(ExplorerToOrchestrator::SupportedCombinationResult {
                     explorer_id: self.id,
                     combination_list,
@@ -281,70 +319,127 @@ impl Explorer {
 
     // ==================== Explorer -> Planet ====================
 
-    fn query_supported_resources(&mut self) -> std::collections::HashSet<BasicResourceType> {
-        let Some(tx) = &self.planet_link.to_planet else {
-            logging::no_planet_link(self.id);
-            return std::collections::HashSet::new();
-        };
-        if tx.send(ExplorerToPlanet::SupportedResourceRequest { explorer_id: self.id }).is_err() {
-            logging::planet_channel_gone(self.id);
-            return std::collections::HashSet::new();
-        }
-        let result = match self.await_planet_response() {
-            Some(PlanetToExplorer::SupportedResourceResponse { resource_list }) => resource_list,
-            Some(PlanetToExplorer::Stopped) => {
-                logging::planet_stopped(self.id);
-                std::collections::HashSet::new()
-            }
-            _ => std::collections::HashSet::new(),
-        };
-        self.world.record_resources(self.current_planet_id, result.clone());
-        result
-    }
 
-    fn query_supported_combinations(&mut self) -> std::collections::HashSet<ComplexResourceType> {
-        let Some(tx) = &self.planet_link.to_planet else {
-            return std::collections::HashSet::new();
-        };
-        if tx.send(ExplorerToPlanet::SupportedCombinationRequest { explorer_id: self.id }).is_err() {
-            return std::collections::HashSet::new();
-        }
-        let result = match self.await_planet_response() {
-            Some(PlanetToExplorer::SupportedCombinationResponse { combination_list }) => combination_list,
-            _ => std::collections::HashSet::new(),
-        };
-        self.world.record_combos(self.current_planet_id, result.clone());
-        result
-    }
-
-    fn request_generate_resource(&mut self, resource: BasicResourceType) -> Result<(), String> {
-        let Some(tx) = &self.planet_link.to_planet else {
-            return Err("not currently linked to a planet".to_string());
-        };
-        if tx
-            .send(ExplorerToPlanet::GenerateResourceRequest { explorer_id: self.id, resource })
-            .is_err()
-        {
-            return Err("planet unreachable".to_string());
-        }
-
-        match self.await_planet_response() {
-            Some(PlanetToExplorer::GenerateResourceResponse { resource: Some(r) }) => {
-                self.bag.put_back(GenericResource::BasicResources(r));
-                Ok(())
-            }
-            Some(PlanetToExplorer::GenerateResourceResponse { resource: None }) => {
-                Err("planet could not generate that resource".to_string())
-            }
-            Some(PlanetToExplorer::Stopped) => Err("planet is stopped".to_string()),
-            _ => Err("no response from planet".to_string()),
-        }
-    }
 
     /// Builds the `ComplexResourceRequest` for a target type by pulling
     /// matching ingredient resources out of the bag. Puts back whatever
     /// it already took if the full recipe isn't available, so nothing is
     /// lost on failure. (Unchanged from the skeleton.)
+
+
+    /// The ONE place Eco talks to a planet. Sends `msg`, then waits up to
+    /// PLANET_REPLY_TIMEOUT for the reply that answers it.
+    fn request_planet(&self, msg: ExplorerToPlanet) -> Result<PlanetToExplorer, PlanetError> {
+        let (Some(tx), Some(rx)) = (&self.planet_link.to_planet, &self.planet_link.from_planet)
+        else {
+            logging::no_planet_link(self.id);
+            return Err(PlanetError::NoLink);
+        };
+
+        // Anything already waiting is a stale reply to an older request.
+        while rx.try_recv().is_ok() {}
+
+        let wanted = reply_kind(ExplorerToPlanetKind::from(&msg));
+        if tx.send(msg).is_err() {
+            logging::planet_channel_gone(self.id);
+            return Err(PlanetError::Gone);
+        }
+
+        let deadline = Instant::now() + PLANET_REPLY_TIMEOUT;
+        loop {
+            let left = deadline.saturating_duration_since(Instant::now());
+            match rx.recv_timeout(left) {
+                Ok(PlanetToExplorer::Stopped) => {
+                    logging::planet_stopped(self.id);
+                    return Err(PlanetError::Stopped);
+                }
+                Ok(reply) if PlanetToExplorerKind::from(&reply) == wanted => return Ok(reply),
+                Ok(_) => log::debug!("explorer {}: discarded a reply that answers no pending request", self.id),
+                Err(RecvTimeoutError::Timeout) => {
+                    log::warn!("explorer {}: planet did not reply in time", self.id);
+                    return Err(PlanetError::NoReply);
+                }
+                Err(RecvTimeoutError::Disconnected) => {
+                    logging::planet_channel_gone(self.id);
+                    return Err(PlanetError::Gone);
+                }
+            }
+        }
+    }
+
+    /// Asks the current planet what it can generate. Records the answer
+    /// (even an empty set: that is a real answer) only on success.
+    pub(super) fn query_supported_resources(
+        &mut self,
+    ) -> Result<std::collections::HashSet<BasicResourceType>, PlanetError> {
+        let reply = self.request_planet(ExplorerToPlanet::SupportedResourceRequest { explorer_id: self.id })?;
+        let PlanetToExplorer::SupportedResourceResponse { resource_list } = reply else {
+            return Err(PlanetError::NoReply);
+        };
+        self.world.record_resources(self.current_planet_id, resource_list.clone());
+        Ok(resource_list)
+    }
+
+    pub(super) fn query_supported_combinations(
+        &mut self,
+    ) -> Result<std::collections::HashSet<ComplexResourceType>, PlanetError> {
+        let reply = self.request_planet(ExplorerToPlanet::SupportedCombinationRequest { explorer_id: self.id })?;
+        let PlanetToExplorer::SupportedCombinationResponse { combination_list } = reply else {
+            return Err(PlanetError::NoReply);
+        };
+        self.world.record_combos(self.current_planet_id, combination_list.clone());
+        Ok(combination_list)
+    }
+
+    fn request_generate_resource(&mut self, resource: BasicResourceType) -> Result<(), String> {
+        let reply = self
+            .request_planet(ExplorerToPlanet::GenerateResourceRequest { explorer_id: self.id, resource })
+            .map_err(|e| e.describe().to_string())?;
+        match reply {
+            PlanetToExplorer::GenerateResourceResponse { resource: Some(r) } => {
+                self.bag.put_back(GenericResource::BasicResources(r));
+                Ok(())
+            }
+            PlanetToExplorer::GenerateResourceResponse { resource: None } => {
+                Err("planet could not generate that resource".to_string())
+            }
+            _ => Err("unexpected reply from planet".to_string()),
+        }
+    }
+
+    fn request_combine_resource(&mut self, to_generate: ComplexResourceType) -> Result<(), String> {
+        if !self.planet_link.is_connected() {
+            return Err(PlanetError::NoLink.describe().to_string());
+        }
+
+        let msg = self.build_combine_request(to_generate)?;
+
+        let reply = self
+            .request_planet(ExplorerToPlanet::CombineResourceRequest { explorer_id: self.id, msg })
+            .map_err(|e| e.describe().to_string())?;
+        match reply {
+            PlanetToExplorer::CombineResourceResponse { complex_response: Ok(complex_resource) } => {
+                self.bag.put_back(GenericResource::ComplexResources(complex_resource));
+                Ok(())
+            }
+            PlanetToExplorer::CombineResourceResponse { complex_response: Err((reason, r1, r2)) } => {
+                self.bag.put_back(r1);
+                self.bag.put_back(r2);
+                Err(reason)
+            }
+            _ => Err("unexpected reply from planet".to_string()),
+        }
+    }
+
+    /// "Energy Cell Availability" — explorer-initiated only, no
+    /// orchestrator involvement in the real protocol.
+    pub fn query_available_energy_cells(&self) -> Option<ID> {
+        match self.request_planet(ExplorerToPlanet::AvailableEnergyCellRequest { explorer_id: self.id }) {
+            Ok(PlanetToExplorer::AvailableEnergyCellResponse { available_cells }) => Some(available_cells),
+            _ => None,
+        }
+    }
+
     fn build_combine_request(&mut self, to_generate: ComplexResourceType) -> Result<ComplexResourceRequest, String> {
         let result = match to_generate {
             ComplexResourceType::Water => {
@@ -426,52 +521,6 @@ impl Explorer {
         })
     }
 
-    fn request_combine_resource(&mut self, to_generate: ComplexResourceType) -> Result<(), String> {
-        if !self.planet_link.is_connected() {
-            return Err("not currently linked to a planet".to_string());
-        }
-
-        let msg = self.build_combine_request(to_generate)?;
-
-        let tx = self.planet_link.to_planet.as_ref().unwrap();
-        if tx.send(ExplorerToPlanet::CombineResourceRequest { explorer_id: self.id, msg }).is_err() {
-            return Err("planet unreachable".to_string());
-        }
-
-        match self.await_planet_response() {
-            Some(PlanetToExplorer::CombineResourceResponse { complex_response: Ok(complex_resource) }) => {
-                self.bag.put_back(GenericResource::ComplexResources(complex_resource));
-                Ok(())
-            }
-            Some(PlanetToExplorer::CombineResourceResponse { complex_response: Err((reason, r1, r2)) }) => {
-                self.bag.put_back(r1);
-                self.bag.put_back(r2);
-                Err(reason)
-            }
-            Some(PlanetToExplorer::Stopped) => Err("planet is stopped".to_string()),
-            _ => Err("no response from planet".to_string()),
-        }
-    }
-
-    /// "Energy Cell Availability" — explorer-initiated only, no
-    /// orchestrator involvement in the real protocol.
-    pub fn query_available_energy_cells(&self) -> Option<ID> {
-        let tx = self.planet_link.to_planet.as_ref()?;
-        if tx.send(ExplorerToPlanet::AvailableEnergyCellRequest { explorer_id: self.id }).is_err() {
-            return None;
-        }
-        match self.await_planet_response() {
-            Some(PlanetToExplorer::AvailableEnergyCellResponse { available_cells }) => Some(available_cells),
-            _ => None,
-        }
-    }
-
-    /// Blocks briefly for a single reply from the current planet.
-    /// Returns `None` on timeout.
-    fn await_planet_response(&self) -> Option<PlanetToExplorer> {
-        let rx = self.planet_link.from_planet.as_ref()?;
-        rx.recv_timeout(Duration::from_secs(2)).ok()
-    }
 
     // ==================== Autonomous AI: economy + planning ====================
 
