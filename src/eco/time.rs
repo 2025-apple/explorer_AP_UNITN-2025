@@ -7,7 +7,7 @@
 
 use rand::{Rng, RngExt};
 
-use super::regime::{CostTable, EconomyRegime};
+pub use super::regime::{CostTable, EconomyRegime};
 
 /// Cycles-per-day, fixed by spec.
 pub const CYCLES_PER_DAY: u8 = 5;

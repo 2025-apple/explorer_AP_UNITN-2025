@@ -1,4 +1,4 @@
-mod eco;
+pub mod eco;
 
 
 pub use eco::{create_explorer, create_explorer_oracle, Explorer,BagContent};

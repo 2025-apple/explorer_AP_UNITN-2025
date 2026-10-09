@@ -572,5 +572,4 @@ impl Explorer {
         self.task = None;
     }
 
-    enum Pending { None, Neighbors { since: Instant }, Travel { to: ID, since: Instant } }
 }
