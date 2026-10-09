@@ -571,5 +571,4 @@ impl Explorer {
         logging::task_completed(self.id, target, bonus, self.wallet.coins);
         self.task = None;
     }
-
 }

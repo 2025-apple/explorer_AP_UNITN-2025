@@ -7,7 +7,7 @@
 
 use rand::{Rng, RngExt};
 
-pub use super::regime::{CostTable, EconomyRegime};
+use super::regime::{CostTable, EconomyRegime};
 
 /// Cycles-per-day, fixed by spec.
 pub const CYCLES_PER_DAY: u8 = 5;
@@ -99,3 +99,4 @@ impl Default for EconomyClock {
         Self::new()
     }
 }
+

@@ -48,7 +48,7 @@ impl EconomyRegime {
         }
     }
 
-    pub fn next(self) -> EconomyRegime {
+    pub(super) fn next(self) -> EconomyRegime {
         match self {
             EconomyRegime::Neutral => EconomyRegime::Flourish,
             EconomyRegime::Flourish => EconomyRegime::Recession,

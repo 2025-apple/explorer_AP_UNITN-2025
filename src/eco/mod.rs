@@ -24,13 +24,13 @@
 //!     `build_combine_request` exactly.
 
 mod bag;
-pub mod explorer;
+mod explorer;
 mod logging;
 mod planner;
 mod recipes;
-pub mod regime;
-pub mod time;
-pub mod wallet;
+mod regime;
+mod time;
+mod wallet;
 mod world;
 
 pub use explorer::{create_explorer, create_explorer_oracle, Explorer,BagContent};

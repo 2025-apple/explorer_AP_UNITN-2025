@@ -1,4 +1,4 @@
-use explorer_eco::eco::time::{EconomyClock, EconomyRegime};
+use explorer_eco::time::{EconomyClock, EconomyRegime};
 use rand::rngs::StdRng;
 use rand::SeedableRng;
 
