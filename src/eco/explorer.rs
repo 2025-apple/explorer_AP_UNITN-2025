@@ -84,17 +84,17 @@ pub struct Explorer {
     should_stop: bool,
 
     // ---- Eco's own economy + planning state (no protocol involvement) ----
-    clock: EconomyClock,
-    wallet: Wallet,
+    pub(super) clock: EconomyClock,
+    pub(super) wallet: Wallet,
     estimator: RegimeEstimator,
     world: WorldModel,
-    task: Option<ComplexResourceType>,
+    pub(super) task: Option<ComplexResourceType>,
     blind_mode: bool,
     rng: StdRng,
 }
 
 impl Explorer {
-    fn new(
+    pub(super) fn new(
         id: ID,
         starting_planet_id: ID,
         from_orchestrator: Receiver<OrchestratorToExplorer>,
@@ -475,7 +475,7 @@ impl Explorer {
 
     // ==================== Autonomous AI: economy + planning ====================
 
-    fn ai_step(&mut self) {
+    pub(super) fn ai_step(&mut self) {
         if let Some((ended_regime, len)) = self.clock.tick(&mut self.rng) {
             self.estimator.observe(ended_regime, len);
             logging::regime_ended(self.id, ended_regime, len, self.clock.regime);
@@ -522,7 +522,7 @@ impl Explorer {
         self.execute(action);
     }
 
-    fn execute(&mut self, action: Action) {
+    pub(super) fn execute(&mut self, action: Action) {
         let costs = self.clock.costs();
         match action {
             Action::Stay => {
@@ -565,7 +565,7 @@ impl Explorer {
         }
     }
 
-    fn complete_task(&mut self, target: ComplexResourceType) {
+    pub(super) fn complete_task(&mut self, target: ComplexResourceType) {
         let bonus = (self.wallet.coins.max(0) / 2) as u32;
         self.wallet.credit(bonus);
         logging::task_completed(self.id, target, bonus, self.wallet.coins);
