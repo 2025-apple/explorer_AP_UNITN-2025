@@ -2,7 +2,7 @@
 //! skeleton) plus the wiring that drives Eco's private economy and
 //! planner every `ai_step`.
 
-use std::time::Duration;
+use std::time::{Duration, Instant};
 
 use crossbeam_channel::{Receiver, Sender, TryRecvError};
 use rand::rngs::StdRng;
@@ -571,4 +571,6 @@ impl Explorer {
         logging::task_completed(self.id, target, bonus, self.wallet.coins);
         self.task = None;
     }
+
+    enum Pending { None, Neighbors { since: Instant }, Travel { to: ID, since: Instant } }
 }
