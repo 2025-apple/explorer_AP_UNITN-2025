@@ -527,6 +527,26 @@ impl Explorer {
         })
     }
 
+    /// Learns what the current planet supports, once per planet. Free: no
+    /// charge, no clock tick, no orchestrator message. A failed probe records
+    /// nothing and only delays the next probe; it never blocks other actions.
+    fn discover_current_planet(&mut self) {
+        let here = self.current_planet_id;
+        let need_resources = !self.world.resources.contains_key(&here);
+        let need_combos = !self.world.combos.contains_key(&here);
+        if !(need_resources || need_combos) || !self.comms.may_probe(Instant::now()) {
+            return;
+        }
+
+        if need_resources && self.query_supported_resources().is_err() {
+            self.comms.probe_failed(Instant::now());
+            return; // planet not answering: don't also ask about combinations
+        }
+        if need_combos && self.query_supported_combinations().is_err() {
+            self.comms.probe_failed(Instant::now());
+        }
+    }
+
 
     // ==================== Autonomous AI: economy + planning ====================
 
@@ -560,6 +580,8 @@ impl Explorer {
         if !self.comms.may_act(Instant::now()) {
             return;
         }
+
+        self.discover_current_planet();
 
         let forecast = if self.blind_mode {
             ForecastMode::Blind {
@@ -620,6 +642,7 @@ impl Explorer {
                 });
                 self.comms.start_neighbors(self.current_planet_id, Instant::now());
             }
+        }
 
         if self.wallet.is_in_debt() {
             logging::in_debt(self.id, self.wallet.coins);
@@ -629,6 +652,7 @@ impl Explorer {
             // the task without helping either objective.
         }
     }
+
 
     pub(super) fn complete_task(&mut self, target: ComplexResourceType) {
         let bonus = (self.wallet.coins.max(0) / 2) as u32;

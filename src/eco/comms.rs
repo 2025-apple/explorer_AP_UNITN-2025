@@ -32,11 +32,21 @@ pub(super) struct Comms {
     pub(super) pending: Pending,
     /// No new action before this instant (after a failure).
     pub(super) retry_at: Option<Instant>,
+    /// No capability probe before this instant (after a failed probe).
+    pub(super) probe_retry_at: Option<Instant>,
 }
 
 impl Comms {
     pub(super) fn new() -> Self {
-        Comms { pending: Pending::Idle, retry_at: None }
+        Comms { pending: Pending::Idle, retry_at: None, probe_retry_at: None }
+    }
+
+    pub(super) fn may_probe(&self, now: Instant) -> bool {
+        self.probe_retry_at.is_none_or(|until| now >= until)
+    }
+
+    pub(super) fn probe_failed(&mut self, now: Instant) {
+        self.probe_retry_at = Some(now + RETRY_COOLDOWN);
     }
 
     /// Called once per decision step. First expires an overdue pending

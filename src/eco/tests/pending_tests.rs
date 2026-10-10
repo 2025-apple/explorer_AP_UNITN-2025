@@ -63,3 +63,15 @@ fn cool_down_blocks_for_the_cooldown_only() {
     assert!(!c.may_act(t0 + RETRY_COOLDOWN - MS));
     assert!(c.may_act(t0 + RETRY_COOLDOWN));
 }
+
+#[test]
+fn a_failed_probe_blocks_probing_but_not_acting() {
+    let t0 = Instant::now();
+    let mut c = Comms::new();
+    assert!(c.may_probe(t0));
+    c.probe_failed(t0);
+    assert!(!c.may_probe(t0));
+    assert!(!c.may_probe(t0 + RETRY_COOLDOWN - MS));
+    assert!(c.may_probe(t0 + RETRY_COOLDOWN));
+    assert!(c.may_act(t0)); // a failed probe never stops Eco from acting
+}
