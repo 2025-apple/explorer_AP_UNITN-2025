@@ -80,3 +80,62 @@ fn completing_a_task_in_debt_pays_nothing() {
     r.explorer.complete_task(ComplexResourceType::Water);
     assert_eq!(r.explorer.wallet.coins, -10);
 }
+
+#[test]
+fn a_silent_orchestrator_gets_one_neighbors_request_not_one_per_step() {
+    let mut r = rig();
+    for _ in 0..10 {
+        r.explorer.ai_step();
+    }
+    let sent = r
+        .from_explorer
+        .try_iter()
+        .filter(|m| matches!(m, ExplorerToOrchestrator::NeighborsRequest { .. }))
+        .count();
+    assert_eq!(sent, 1);
+}
+
+#[test]
+fn waiting_for_a_reply_changes_neither_the_clock_nor_the_wallet() {
+    // Same arithmetic as the 5-step test, over two days while a request is pending.
+    let mut r = rig();
+    for _ in 0..10 {
+        r.explorer.ai_step();
+    }
+    assert_eq!(r.explorer.clock.day, 3);
+    assert_eq!(r.explorer.clock.cycle_in_day, 0);
+    assert_eq!(r.explorer.wallet.coins, 120 + 120 + 120); // two Neutral incomes, no charges
+}
+
+#[test]
+fn a_neighbors_response_clears_the_pending_request() {
+    let mut r = rig();
+    r.explorer.execute(Action::RequestNeighbors);
+    assert!(matches!(r.explorer.comms.pending, crate::eco::comms::Pending::Neighbors { .. }));
+    r.explorer
+        .handle_orchestrator_message(OrchestratorToExplorer::NeighborsResponse { neighbors: vec![] });
+    assert_eq!(r.explorer.comms.pending, crate::eco::comms::Pending::Idle);
+}
+
+#[test]
+fn a_move_to_planet_clears_a_pending_travel() {
+    let mut r = rig();
+    r.explorer.execute(Action::Move(7));
+    assert!(matches!(r.explorer.comms.pending, crate::eco::comms::Pending::Travel { .. }));
+    let (tx, _rx) = unbounded::<ExplorerToPlanet>();
+    r.explorer.handle_orchestrator_message(OrchestratorToExplorer::MoveToPlanet {
+        sender_to_new_planet: Some(tx),
+        planet_id: 7,
+    });
+    assert_eq!(r.explorer.comms.pending, crate::eco::comms::Pending::Idle);
+    assert_eq!(r.explorer.current_planet_id, 7);
+}
+
+#[test]
+fn a_failed_mine_starts_a_cooldown() {
+    // The rig's planet never answers, so the mine fails after the 2 s reply timeout.
+    let mut r = rig();
+    r.explorer
+        .execute(Action::Mine(common_game::components::resource::BasicResourceType::Carbon));
+    assert!(!r.explorer.comms.may_act(std::time::Instant::now()));
+}

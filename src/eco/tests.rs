@@ -4,3 +4,4 @@ mod time_test;
 mod wallet_test;
 
 mod comms_test;
+mod pending_tests;

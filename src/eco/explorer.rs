@@ -28,6 +28,7 @@ use super::regime::{ForecastMode, RegimeEstimator};
 use super::time::EconomyClock;
 use super::wallet::Wallet;
 use super::world::WorldModel;
+use super::comms::Comms;
 
 /// Eco's bag report: resource type and how many.
 pub type BagContent = Vec<(ResourceType, usize)>;
@@ -129,6 +130,7 @@ pub struct Explorer {
     pub(super) task: Option<ComplexResourceType>,
     blind_mode: bool,
     rng: StdRng,
+    pub(super) comms: Comms,
 }
 
 impl Explorer {
@@ -160,6 +162,7 @@ impl Explorer {
             wallet: Wallet::new(120), // spec: Eco starts day 1 with 120 coins
             estimator: RegimeEstimator::new(),
             world,
+            comms: Comms::new(),
             task: None,
             blind_mode,
             rng: StdRng::from_rng(&mut rand::rng()),
@@ -202,7 +205,7 @@ impl Explorer {
 
     // ==================== Orchestrator -> Explorer ====================
 
-    fn handle_orchestrator_message(&mut self, msg: OrchestratorToExplorer) {
+    pub(super) fn handle_orchestrator_message(&mut self, msg: OrchestratorToExplorer) {
         match msg {
             OrchestratorToExplorer::KillExplorer => {
                 logging::kill_received(self.id);
@@ -254,6 +257,8 @@ impl Explorer {
                     }
                 }
 
+                self.comms.resolve_travel();
+
                 let _ = self.to_orchestrator.send(ExplorerToOrchestrator::MovedToPlanetResult {
                     explorer_id: self.id,
                     planet_id: self.current_planet_id,
@@ -301,6 +306,7 @@ impl Explorer {
 
             OrchestratorToExplorer::NeighborsResponse { neighbors } => {
                 self.world.record_neighbors(self.current_planet_id, neighbors);
+                self.comms.resolve_neighbors();
             }
 
 
@@ -548,6 +554,13 @@ impl Explorer {
             return;
         }
 
+        // Waiting on the orchestrator (or cooling down after a failure) only
+        // blocks choosing a NEW action. The clock tick and income above
+        // already ran, so nothing here touches the economy.
+        if !self.comms.may_act(Instant::now()) {
+            return;
+        }
+
         let forecast = if self.blind_mode {
             ForecastMode::Blind {
                 estimator: &self.estimator,
@@ -578,23 +591,26 @@ impl Explorer {
                 self.wallet.charge(costs.stay);
             }
             Action::Move(dst) | Action::ExploreTowards(dst) => {
-                self.wallet.charge(costs.mv);
+                self.wallet.charge(costs.mv);   // moves in Step 6
                 let _ = self.to_orchestrator.send(ExplorerToOrchestrator::TravelToPlanetRequest {
                     explorer_id: self.id,
                     current_planet_id: self.current_planet_id,
                     dst_planet_id: dst,
                 });
+                self.comms.start_travel(dst, Instant::now());
             }
             Action::Mine(resource) => {
                 self.wallet.charge(costs.mine);
                 if let Err(e) = self.request_generate_resource(resource) {
                     logging::mine_failed(self.id, resource, &e);
+                    self.comms.cool_down(Instant::now());
                 }
             }
             Action::Combine(target) => {
                 self.wallet.charge(costs.combine);
                 if let Err(e) = self.request_combine_resource(target) {
                     logging::combine_failed(self.id, target, &e);
+                    self.comms.cool_down(Instant::now());
                 }
             }
             Action::RequestNeighbors => {
@@ -602,8 +618,8 @@ impl Explorer {
                     explorer_id: self.id,
                     current_planet_id: self.current_planet_id,
                 });
+                self.comms.start_neighbors(self.current_planet_id, Instant::now());
             }
-        }
 
         if self.wallet.is_in_debt() {
             logging::in_debt(self.id, self.wallet.coins);
