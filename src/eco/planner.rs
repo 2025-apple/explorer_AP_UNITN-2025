@@ -114,7 +114,7 @@ impl Planner {
     fn explore_or_request(current_planet: ID, world: &WorldModel) -> Action {
         match world.neighbors.get(&current_planet) {
             None => Action::RequestNeighbors,
-            Some(_) => match world.nearest_unvisited(current_planet) {
+            Some(_) => match world.nearest_unexplored(current_planet){
                 Some(path) if path.len() > 1 => Action::ExploreTowards(path[1]),
                 _ => Action::RequestNeighbors, // known frontier exhausted — ask again
             },

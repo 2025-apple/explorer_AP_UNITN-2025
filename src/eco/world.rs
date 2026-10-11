@@ -77,10 +77,13 @@ impl WorldModel {
         self.bfs_to(from, |p| self.combos.get(&p).is_some_and(|s| s.contains(&combo)))
     }
 
-    /// Nearest planet we haven't visited yet — used when the shopping
-    /// list needs something no known planet has, so Eco has to explore.
-    pub fn nearest_unvisited(&self, from: ID) -> Option<Vec<ID>> {
-        self.bfs_to(from, |p| p != from && !self.visited.contains(&p))
+    /// Nearest planet worth going to when the shopping list needs something no
+    /// known planet has: one we never visited, or one we visited but whose exits
+    /// we never asked for (what lies beyond it is still unexplored).
+    pub fn nearest_unexplored(&self, from: ID) -> Option<Vec<ID>> {
+        self.bfs_to(from, |p| {
+            p != from && (!self.visited.contains(&p) || !self.neighbors.contains_key(&p))
+        })
     }
 
     fn bfs_to(&self, from: ID, goal: impl Fn(ID) -> bool) -> Option<Vec<ID>> {

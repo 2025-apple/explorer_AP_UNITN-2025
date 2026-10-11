@@ -58,3 +58,14 @@ fn paths_never_go_through_a_forgotten_planet() {
     w.forget_planet(2);
     assert_eq!(w.nearest_known_source(1, BasicResourceType::Carbon), None);
 }
+
+#[test]
+fn a_visited_planet_whose_exits_were_never_asked_is_still_worth_exploring() {
+    let mut w = WorldModel::default();
+    w.record_neighbors(1, vec![2]); // planet 2 was visited, but its exits are unknown
+    w.visited.extend([1, 2]);
+    assert_eq!(w.nearest_unexplored(1), Some(vec![1, 2]));
+
+    w.record_neighbors(2, vec![1]); // now everything is known and visited
+    assert_eq!(w.nearest_unexplored(1), None);
+}

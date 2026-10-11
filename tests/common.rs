@@ -1,13 +1,16 @@
 #![allow(dead_code)] // each test crate uses only part of this toolkit
 
+use std::collections::HashMap;
+use std::sync::OnceLock;
 use std::thread::{self, JoinHandle};
 use std::time::{Duration, Instant};
 
+use common_game::components::forge::Forge;
 use common_game::components::planet::{
     DummyPlanetState, Planet, PlanetAI, PlanetState, PlanetType,
 };
 use common_game::components::resource::{
-    BasicResourceType, Combinator, ComplexResourceType, Generator,
+    BasicResourceType, Combinator, ComplexResourceType, Generator, ResourceType,
 };
 use common_game::components::rocket::Rocket;
 use common_game::components::sunray::Sunray;
@@ -21,11 +24,24 @@ use explorer_eco::{create_explorer, BagContent};
 /// How long the test side waits for a planet to answer the "orchestrator".
 const PLANET_TIMEOUT: Duration = Duration::from_secs(2);
 
+/// Sunrays can only be made by a `Forge`, and only one may exist per process.
+fn forge() -> &'static Forge {
+    static FORGE: OnceLock<Forge> = OnceLock::new();
+    FORGE.get_or_init(|| Forge::new().expect("only one Forge per test process"))
+}
+
 // ---------------------------------------------------------------------------
 // A minimal planet brain. The real Planet runtime does the protocol work
-// (registering explorers, replying Stopped, ...); this only answers questions.
+// (registering explorers, replying Stopped, ...); this only answers questions
+// and spends charged energy cells on generating/combining.
 // ---------------------------------------------------------------------------
 struct TestAI;
+
+fn charged_cell_index(state: &PlanetState) -> usize {
+    (0..state.cells_count())
+        .find(|&i| state.cell(i).is_charged())
+        .unwrap_or(0)
+}
 
 impl PlanetAI for TestAI {
     fn handle_sunray(&mut self, state: &mut PlanetState, _g: &Generator, _c: &Combinator, sunray: Sunray) {
@@ -64,8 +80,19 @@ impl PlanetAI for TestAI {
                     available_cells: charged as ID,
                 })
             }
-            // Generate/Combine are added in the capstone step.
-            _ => None,
+            ExplorerToPlanet::GenerateResourceRequest { resource, .. } => {
+                let i = charged_cell_index(state);
+                let made = generator.try_make(resource, state.cell_mut(i)).ok();
+                Some(PlanetToExplorer::GenerateResourceResponse { resource: made })
+            }
+            ExplorerToPlanet::CombineResourceRequest { msg, .. } => {
+                // With no charged cell, `try_make` fails and hands the
+                // ingredients back, which is exactly what the protocol wants.
+                let i = charged_cell_index(state);
+                Some(PlanetToExplorer::CombineResourceResponse {
+                    complex_response: combinator.try_make(msg, state.cell_mut(i)),
+                })
+            }
         }
     }
 }
@@ -135,16 +162,34 @@ impl TestPlanet {
         }
     }
 
+    /// Charges one energy cell (the orchestrator sends the planet a sunray).
+    pub fn sunray(&self) {
+        self.to_planet_orch
+            .send(OrchestratorToPlanet::Sunray(forge().generate_sunray()))
+            .unwrap();
+        match self.expect_reply("Sunray") {
+            PlanetToOrchestrator::SunrayAck { .. } => {}
+            other => panic!("expected SunrayAck, got {other:?}"),
+        }
+    }
+
     /// What the orchestrator does to let an explorer onto this planet
-    /// (Incoming request); returns the channel on which the planet will
-    /// answer that explorer. Only valid while the planet is started.
+    /// (Incoming request), with a fresh reply channel; returns its receiving end.
     pub fn admit(&self, explorer_id: ID) -> Receiver<PlanetToExplorer> {
         let (tx, rx) = unbounded::<PlanetToExplorer>();
+        self.admit_via(explorer_id, tx);
+        rx
+    }
+
+    /// Same, but the planet will answer through `new_sender`. Eco's receiving
+    /// end is fixed for its whole life, so every planet it visits must answer
+    /// into the same channel.
+    pub fn admit_via(&self, explorer_id: ID, new_sender: Sender<PlanetToExplorer>) {
         self.to_planet_orch
-            .send(OrchestratorToPlanet::IncomingExplorerRequest { explorer_id, new_sender: tx })
+            .send(OrchestratorToPlanet::IncomingExplorerRequest { explorer_id, new_sender })
             .unwrap();
         match self.expect_reply("IncomingExplorerRequest") {
-            PlanetToOrchestrator::IncomingExplorerResponse { res: Ok(()), .. } => rx,
+            PlanetToOrchestrator::IncomingExplorerResponse { res: Ok(()), .. } => {}
             other => panic!("expected a successful IncomingExplorerResponse, got {other:?}"),
         }
     }
@@ -176,6 +221,8 @@ impl Drop for TestPlanet {
 // ---------------------------------------------------------------------------
 pub struct RunningExplorer {
     pub explorer_id: ID,
+    /// Every planet Eco visits must answer into (a clone of) this sender.
+    pub reply_tx: Sender<PlanetToExplorer>,
     to_explorer: Sender<OrchestratorToExplorer>,
     from_explorer: Receiver<ExplorerToOrchestrator<BagContent>>,
     thread: Option<JoinHandle<()>>,
@@ -184,11 +231,25 @@ pub struct RunningExplorer {
 /// Admits explorer `explorer_id` on `planet` (as the orchestrator would) and
 /// starts Eco on its own thread. Eco is in manual mode until `send(StartExplorerAI)`.
 pub fn spawn_explorer(explorer_id: ID, planet: &TestPlanet) -> RunningExplorer {
-    let rx_planet = planet.admit(explorer_id);
+    spawn_with(explorer_id, planet, None)
+}
+
+/// Same, but Eco starts with the given task instead of a random one.
+pub fn spawn_explorer_with_task(
+    explorer_id: ID,
+    planet: &TestPlanet,
+    task: ComplexResourceType,
+) -> RunningExplorer {
+    spawn_with(explorer_id, planet, Some(task))
+}
+
+fn spawn_with(explorer_id: ID, planet: &TestPlanet, task: Option<ComplexResourceType>) -> RunningExplorer {
+    let (reply_tx, rx_planet) = unbounded::<PlanetToExplorer>();
+    planet.admit_via(explorer_id, reply_tx.clone());
     let (to_explorer, rx_orch) = unbounded::<OrchestratorToExplorer>();
     let (tx_orch, from_explorer) = unbounded::<ExplorerToOrchestrator<BagContent>>();
 
-    let explorer = create_explorer(
+    let mut explorer = create_explorer(
         explorer_id,
         planet.id,
         rx_orch,
@@ -196,14 +257,22 @@ pub fn spawn_explorer(explorer_id: ID, planet: &TestPlanet) -> RunningExplorer {
         rx_planet,
         planet.to_planet.clone(),
     );
+    if let Some(task) = task {
+        explorer = explorer.with_task(task);
+    }
     let thread = thread::spawn(move || explorer.run());
 
-    RunningExplorer { explorer_id, to_explorer, from_explorer, thread: Some(thread) }
+    RunningExplorer { explorer_id, reply_tx, to_explorer, from_explorer, thread: Some(thread) }
 }
 
 impl RunningExplorer {
     pub fn send(&self, msg: OrchestratorToExplorer) {
         self.to_explorer.send(msg).unwrap();
+    }
+
+    /// The next message Eco sends to the orchestrator, if one arrives in time.
+    pub fn next_message(&self, timeout: Duration) -> Option<ExplorerToOrchestrator<BagContent>> {
+        self.from_explorer.recv_timeout(timeout).ok()
     }
 
     /// Reads messages Eco sends to the orchestrator until `pick` returns
@@ -235,5 +304,98 @@ impl Drop for RunningExplorer {
         if let Some(t) = self.thread.take() {
             let _ = t.join();
         }
+    }
+}
+
+// ---------------------------------------------------------------------------
+// A small galaxy plus a scripted orchestrator that serves Eco's requests.
+// ---------------------------------------------------------------------------
+pub struct Galaxy {
+    planets: HashMap<ID, TestPlanet>,
+    edges: HashMap<ID, Vec<ID>>,
+    /// Orchestrators differ: the diagram does Incoming then Outgoing, Bipolar
+    /// does Outgoing then Incoming. Eco must not care.
+    outgoing_first: bool,
+}
+
+impl Galaxy {
+    pub fn new(outgoing_first: bool) -> Self {
+        Galaxy { planets: HashMap::new(), edges: HashMap::new(), outgoing_first }
+    }
+
+    pub fn add_planet(&mut self, planet: TestPlanet) {
+        self.edges.entry(planet.id).or_default();
+        self.planets.insert(planet.id, planet);
+    }
+
+    pub fn connect(&mut self, a: ID, b: ID) {
+        self.edges.entry(a).or_default().push(b);
+        self.edges.entry(b).or_default().push(a);
+    }
+
+    pub fn planet(&self, id: ID) -> &TestPlanet {
+        &self.planets[&id]
+    }
+
+    pub fn start_all(&self) {
+        for planet in self.planets.values() {
+            planet.start();
+        }
+    }
+
+    fn neighbors(&self, id: ID) -> Vec<ID> {
+        self.edges.get(&id).cloned().unwrap_or_default()
+    }
+
+    /// The orchestrator's move choreography for one accepted TravelToPlanetRequest.
+    fn move_explorer(&self, eco: &RunningExplorer, from: ID, to: ID) {
+        let (src, dst) = (&self.planets[&from], &self.planets[&to]);
+        if self.outgoing_first {
+            src.release(eco.explorer_id);
+            dst.admit_via(eco.explorer_id, eco.reply_tx.clone());
+        } else {
+            dst.admit_via(eco.explorer_id, eco.reply_tx.clone());
+            src.release(eco.explorer_id);
+        }
+        eco.send(OrchestratorToExplorer::MoveToPlanet {
+            sender_to_new_planet: Some(dst.to_planet.clone()),
+            planet_id: to,
+        });
+    }
+
+    /// Plays the orchestrator for `eco` (answering neighbour and travel
+    /// requests) while polling its bag, until it holds `want` or `timeout` passes.
+    pub fn serve_until_bag_contains(
+        &self,
+        eco: &RunningExplorer,
+        want: ResourceType,
+        timeout: Duration,
+    ) -> bool {
+        let deadline = Instant::now() + timeout;
+        let mut last_poll = Instant::now();
+        while Instant::now() < deadline {
+            if last_poll.elapsed() >= Duration::from_millis(250) {
+                eco.send(OrchestratorToExplorer::BagContentRequest);
+                last_poll = Instant::now();
+            }
+            let Some(msg) = eco.next_message(Duration::from_millis(50)) else { continue };
+            match msg {
+                ExplorerToOrchestrator::NeighborsRequest { current_planet_id, .. } => {
+                    eco.send(OrchestratorToExplorer::NeighborsResponse {
+                        neighbors: self.neighbors(current_planet_id),
+                    });
+                }
+                ExplorerToOrchestrator::TravelToPlanetRequest { current_planet_id, dst_planet_id, .. } => {
+                    self.move_explorer(eco, current_planet_id, dst_planet_id);
+                }
+                ExplorerToOrchestrator::BagContentResponse { bag_content, .. } => {
+                    if bag_content.iter().any(|(kind, count)| kind == &want && *count > 0) {
+                        return true;
+                    }
+                }
+                _ => {}
+            }
+        }
+        false
     }
 }

@@ -169,6 +169,13 @@ impl Explorer {
         }
     }
 
+    /// Starts Eco on a chosen task instead of a random one, for scripted
+    /// scenarios and tests. The orchestrator never needs this.
+    pub fn with_task(mut self, target: ComplexResourceType) -> Self {
+        self.task = Some(target);
+        self
+    }
+
     /// Main loop. Call this from the thread the orchestrator's `main.rs` spawns.
     pub fn run(mut self) {
         let _ = self.to_orchestrator.send(ExplorerToOrchestrator::CurrentPlanetResult {
