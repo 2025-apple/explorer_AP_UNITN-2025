@@ -16,8 +16,6 @@ pub(super) const PENDING_TIMEOUT: Duration = Duration::from_secs(10);
 pub(super) const RETRY_COOLDOWN: Duration = Duration::from_secs(1);
 
 /// The one request Eco is waiting on. At most one at a time.
-// `for_planet` / `to` are read from Step 5 on; remove this allow then.
-#[allow(dead_code)]
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub(super) enum Pending {
     Idle,
@@ -34,11 +32,13 @@ pub(super) struct Comms {
     pub(super) retry_at: Option<Instant>,
     /// No capability probe before this instant (after a failed probe).
     pub(super) probe_retry_at: Option<Instant>,
+    /// The request that just timed out, until the caller has looked at it.
+    pub(super) last_expired: Option<Pending>,
 }
 
 impl Comms {
     pub(super) fn new() -> Self {
-        Comms { pending: Pending::Idle, retry_at: None, probe_retry_at: None }
+        Comms { pending: Pending::Idle, retry_at: None, probe_retry_at: None, last_expired: None }
     }
 
     pub(super) fn may_probe(&self, now: Instant) -> bool {
@@ -59,6 +59,7 @@ impl Comms {
         };
         if let Some(since) = since {
             if now.saturating_duration_since(since) >= PENDING_TIMEOUT {
+                self.last_expired = Some(self.pending);
                 self.pending = Pending::Idle;
                 self.retry_at = Some(now + RETRY_COOLDOWN);
             }
@@ -84,10 +85,22 @@ impl Comms {
         self.pending = Pending::Travel { to, since: now };
     }
 
-    /// A `NeighborsResponse` arrived: clears only a pending neighbors request.
-    pub(super) fn resolve_neighbors(&mut self) {
-        if matches!(self.pending, Pending::Neighbors { .. }) {
+    /// A `NeighborsResponse` arrived. If one was pending, clears it and returns
+    /// the planet it was asked about (the response itself carries no planet id).
+    pub(super) fn resolve_neighbors(&mut self) -> Option<ID> {
+        if let Pending::Neighbors { for_planet, .. } = self.pending {
             self.pending = Pending::Idle;
+            Some(for_planet)
+        } else {
+            None
+        }
+    }
+
+    /// The destination of the pending travel request, if any.
+    pub(super) fn travel_target(&self) -> Option<ID> {
+        match self.pending {
+            Pending::Travel { to, .. } => Some(to),
+            _ => None,
         }
     }
 
@@ -101,5 +114,15 @@ impl Comms {
     /// A planet action failed: wait a moment before trying again.
     pub(super) fn cool_down(&mut self, now: Instant) {
         self.retry_at = Some(now + RETRY_COOLDOWN);
+    }
+
+    /// Which request (if any) expired during the last `may_act`; reported once.
+    pub(super) fn take_expired(&mut self) -> Option<Pending> {
+        self.last_expired.take()
+    }
+
+    /// Forgets every pending request and cooldown (Reset / Stop).
+    pub(super) fn reset(&mut self) {
+        *self = Comms::new();
     }
 }

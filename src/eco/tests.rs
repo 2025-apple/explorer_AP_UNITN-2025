@@ -6,3 +6,4 @@ mod wallet_test;
 mod comms_test;
 mod pending_tests;
 mod discover_test;
+mod world_test;

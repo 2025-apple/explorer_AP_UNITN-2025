@@ -75,3 +75,45 @@ fn a_failed_probe_blocks_probing_but_not_acting() {
     assert!(c.may_probe(t0 + RETRY_COOLDOWN));
     assert!(c.may_act(t0)); // a failed probe never stops Eco from acting
 }
+
+#[test]
+fn resolving_neighbors_returns_the_planet_that_was_asked() {
+    let t0 = Instant::now();
+    let mut c = Comms::new();
+    c.start_neighbors(7, t0);
+    assert_eq!(c.resolve_neighbors(), Some(7));
+    assert_eq!(c.resolve_neighbors(), None); // nothing pending any more
+}
+
+#[test]
+fn travel_target_is_set_only_while_a_travel_is_pending() {
+    let t0 = Instant::now();
+    let mut c = Comms::new();
+    assert_eq!(c.travel_target(), None);
+    c.start_travel(9, t0);
+    assert_eq!(c.travel_target(), Some(9));
+    c.resolve_travel();
+    assert_eq!(c.travel_target(), None);
+}
+
+#[test]
+fn an_expired_request_is_reported_once() {
+    let t0 = Instant::now();
+    let mut c = Comms::new();
+    c.start_travel(9, t0);
+    c.may_act(t0 + PENDING_TIMEOUT);
+    assert!(matches!(c.take_expired(), Some(Pending::Travel { to: 9, .. })));
+    assert_eq!(c.take_expired(), None);
+}
+
+#[test]
+fn reset_forgets_pending_requests_and_cooldowns() {
+    let t0 = Instant::now();
+    let mut c = Comms::new();
+    c.start_neighbors(7, t0);
+    c.cool_down(t0);
+    c.probe_failed(t0);
+    c.reset();
+    assert!(c.may_act(t0));
+    assert!(c.may_probe(t0));
+}

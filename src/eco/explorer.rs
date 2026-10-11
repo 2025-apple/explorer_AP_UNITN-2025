@@ -28,7 +28,7 @@ use super::regime::{ForecastMode, RegimeEstimator};
 use super::time::EconomyClock;
 use super::wallet::Wallet;
 use super::world::WorldModel;
-use super::comms::Comms;
+use super::comms::{Comms,Pending};
 
 /// Eco's bag report: resource type and how many.
 pub type BagContent = Vec<(ResourceType, usize)>;
@@ -119,7 +119,7 @@ pub struct Explorer {
     pub(super) current_planet_id: ID,
 
     bag: Bag,
-    ai_active: bool,
+    pub(super) ai_active: bool,
     should_stop: bool,
 
     // ---- Eco's own economy + planning state (no protocol involvement) ----
@@ -224,18 +224,20 @@ impl Explorer {
 
             OrchestratorToExplorer::StopExplorerAI => {
                 self.ai_active = false;
+                self.comms.reset();
                 let _ = self.to_orchestrator.send(
                     ExplorerToOrchestrator::StopExplorerAIResult { explorer_id: self.id },
                 );
             }
 
             OrchestratorToExplorer::ResetExplorerAI => {
-                self.ai_active = false;
-                self.world.visited = std::collections::HashSet::from([self.current_planet_id]);
-                // Note: deliberately NOT resetting clock/wallet/task here —
-                // those are Eco's persistent economic life, not AI-loop
-                // state. Swap this comment out if a reset should mean
-                // "start the economy over" too.
+                // Protocol: "Reset the Explorer knowledge or restart the AI if it
+                // is in manual mode". Forget the galaxy and every request in
+                // flight; keep Eco's own life (task, bag, wallet, clock).
+                self.world = WorldModel::default();
+                self.world.visited.insert(self.current_planet_id);
+                self.comms.reset();
+                self.ai_active = true;
                 let _ = self.to_orchestrator.send(
                     ExplorerToOrchestrator::ResetExplorerAIResult { explorer_id: self.id },
                 );
@@ -245,19 +247,32 @@ impl Explorer {
                 match sender_to_new_planet {
                     Some(new_to_planet) => {
                         logging::moved_to_planet(self.id, planet_id);
+                        let changed_planet = planet_id != self.current_planet_id;
                         self.planet_link.to_planet = Some(new_to_planet);
                         if let Some(rx) = &self.planet_link.from_planet {
                             while rx.try_recv().is_ok() {}
                         }
                         self.current_planet_id = planet_id;
                         self.world.visited.insert(planet_id);
+                        // Accepted move: any travel request is now settled, and
+                        // this is the moment the move is paid for.
+                        self.comms.resolve_travel();
+                        if changed_planet {
+                            self.charge_move();
+                        }
                     }
                     None => {
                         logging::move_rejected(self.id, planet_id);
+                        // Only a refusal of the move WE asked for settles our
+                        // pending request; it is free, but cool down so the same
+                        // refused move is not retried at once.
+                        if self.comms.travel_target() == Some(planet_id) {
+                            self.world.invalidate_neighbors(self.current_planet_id);
+                            self.comms.resolve_travel();
+                            self.comms.cool_down(Instant::now());
+                        }
                     }
                 }
-
-                self.comms.resolve_travel();
 
                 let _ = self.to_orchestrator.send(ExplorerToOrchestrator::MovedToPlanetResult {
                     explorer_id: self.id,
@@ -305,8 +320,13 @@ impl Explorer {
             }
 
             OrchestratorToExplorer::NeighborsResponse { neighbors } => {
-                self.world.record_neighbors(self.current_planet_id, neighbors);
-                self.comms.resolve_neighbors();
+                match self.comms.resolve_neighbors() {
+                    Some(asked_about) => self.world.record_neighbors(asked_about, neighbors),
+                    None => log::debug!(
+                        "explorer {}: ignoring a NeighborsResponse nobody asked for",
+                        self.id
+                    ),
+                }
             }
 
 
@@ -574,10 +594,13 @@ impl Explorer {
             return;
         }
 
-        // Waiting on the orchestrator (or cooling down after a failure) only
-        // blocks choosing a NEW action. The clock tick and income above
-        // already ran, so nothing here touches the economy.
-        if !self.comms.may_act(Instant::now()) {
+        let may_act = self.comms.may_act(Instant::now());
+        if matches!(self.comms.take_expired(), Some(Pending::Travel { .. })) {
+            // The move never got an answer, so what we know about our exits
+            // may be out of date: ask again.
+            self.world.invalidate_neighbors(self.current_planet_id);
+        }
+        if !may_act {
             return;
         }
 
@@ -613,7 +636,7 @@ impl Explorer {
                 self.wallet.charge(costs.stay);
             }
             Action::Move(dst) | Action::ExploreTowards(dst) => {
-                self.wallet.charge(costs.mv);   // moves in Step 6
+                // Asking to travel is free; the move is paid when it is accepted.
                 let _ = self.to_orchestrator.send(ExplorerToOrchestrator::TravelToPlanetRequest {
                     explorer_id: self.id,
                     current_planet_id: self.current_planet_id,
@@ -636,11 +659,17 @@ impl Explorer {
                 }
             }
             Action::RequestNeighbors => {
-                let _ = self.to_orchestrator.send(ExplorerToOrchestrator::NeighborsRequest {
-                    explorer_id: self.id,
-                    current_planet_id: self.current_planet_id,
-                });
-                self.comms.start_neighbors(self.current_planet_id, Instant::now());
+                if self.world.neighbors.contains_key(&self.current_planet_id) {
+                    // Exits already known and nothing left to explore: nothing to
+                    // ask. Idle for free (this is not a Stay, so no charge).
+                    log::debug!("explorer {}: frontier exhausted, idling", self.id);
+                } else {
+                    let _ = self.to_orchestrator.send(ExplorerToOrchestrator::NeighborsRequest {
+                        explorer_id: self.id,
+                        current_planet_id: self.current_planet_id,
+                    });
+                    self.comms.start_neighbors(self.current_planet_id, Instant::now());
+                }
             }
         }
 
@@ -659,5 +688,14 @@ impl Explorer {
         self.wallet.credit(bonus);
         logging::task_completed(self.id, target, bonus, self.wallet.coins);
         self.task = None;
+    }
+
+    /// Pays for one accepted move at the price of the regime in force now.
+    fn charge_move(&mut self) {
+        let price = self.clock.costs().mv;
+        self.wallet.charge(price);
+        if self.wallet.is_in_debt() {
+            logging::in_debt(self.id, self.wallet.coins);
+        }
     }
 }

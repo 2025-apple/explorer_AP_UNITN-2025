@@ -13,11 +13,49 @@ pub struct WorldModel {
     pub resources: HashMap<ID, HashSet<BasicResourceType>>,
     pub combos: HashMap<ID, HashSet<ComplexResourceType>>,
     pub visited: HashSet<ID>,
+    /// Exit lists that were thrown away to force a refresh. Kept so the next
+    /// fresh list can still be compared with the old one.
+    pub stale_neighbors: HashMap<ID, Vec<ID>>,
 }
 
 impl WorldModel {
+    /// Stores a fresh exit list. Any planet the previous list had and this one
+    /// lacks was destroyed (the topology only ever loses planets), so it is
+    /// forgotten everywhere.
     pub fn record_neighbors(&mut self, planet: ID, neighbors: Vec<ID>) {
+        let old = self
+            .neighbors
+            .remove(&planet)
+            .or_else(|| self.stale_neighbors.remove(&planet));
+        self.stale_neighbors.remove(&planet);
+        if let Some(old) = old {
+            for gone in old {
+                if !neighbors.contains(&gone) {
+                    self.forget_planet(gone);
+                }
+            }
+        }
         self.neighbors.insert(planet, neighbors);
+    }
+
+    /// Makes Eco ask for `planet`'s exits again, keeping the old list only as
+    /// a baseline for spotting destroyed planets.
+    pub fn invalidate_neighbors(&mut self, planet: ID) {
+        if let Some(list) = self.neighbors.remove(&planet) {
+            self.stale_neighbors.insert(planet, list);
+        }
+    }
+
+    /// Removes a (destroyed) planet from every table and every exit list.
+    pub fn forget_planet(&mut self, planet: ID) {
+        self.neighbors.remove(&planet);
+        self.stale_neighbors.remove(&planet);
+        for list in self.neighbors.values_mut().chain(self.stale_neighbors.values_mut()) {
+            list.retain(|&p| p != planet);
+        }
+        self.resources.remove(&planet);
+        self.combos.remove(&planet);
+        self.visited.remove(&planet);
     }
 
     pub fn record_resources(&mut self, planet: ID, resources: HashSet<BasicResourceType>) {
