@@ -1,7 +1,7 @@
 //! Eco's resource inventory. All access goes through these methods —
 //! nothing outside this module reaches into the raw `Vec` directly.
 
-use std::collections::{HashMap, HashSet};
+use std::collections::{HashMap};
 
 use common_game::components::resource::{BasicResourceType, ComplexResourceType, GenericResource, ResourceType};
 #[derive(Debug, Default)]
@@ -56,13 +56,13 @@ impl Bag {
         m
     }
 
-    pub fn complex_set(&self) -> HashSet<ComplexResourceType> {
-        self.resources
-            .iter()
-            .filter_map(|r| match r {
-                GenericResource::ComplexResources(c) => Some(c.get_type()),
-                GenericResource::BasicResources(_) => None,
-            })
-            .collect()
+    pub fn complex_counts(&self) -> HashMap<ComplexResourceType, u32> {
+        let mut counts = HashMap::new();
+        for r in &self.resources {
+            if let GenericResource::ComplexResources(c) = r {
+                *counts.entry(c.get_type()).or_insert(0) += 1;
+            }
+        }
+        counts
     }
 }

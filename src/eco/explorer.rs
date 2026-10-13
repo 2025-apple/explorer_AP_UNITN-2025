@@ -596,7 +596,8 @@ impl Explorer {
             return;
         };
 
-        if self.bag.complex_set().contains(&target) {
+        let complex = self.bag.complex_counts();
+        if complex.get(&target).copied().unwrap_or(0) > 0 {
             self.complete_task(target);
             return;
         }
@@ -627,13 +628,30 @@ impl Explorer {
             self.current_planet_id,
             &self.world,
             &self.bag.basic_counts(),
-            &self.bag.complex_set(),
+            &complex,
             self.clock.regime,
             self.clock.costs(),
             &forecast,
         );
 
+        let Some(target) = self.task else {
+            let held = self.bag.complex_counts();
+            let mut pool: Vec<_> = ALL_COMPLEX_RESOURCES
+                .iter()
+                .copied()
+                .filter(|t| held.get(t).copied().unwrap_or(0) == 0)
+                .collect();
+            if pool.is_empty() {
+                pool = ALL_COMPLEX_RESOURCES.to_vec();
+            }
+            let new_task = pool[self.rng.random_range(0..pool.len())];
+            logging::task_assigned(self.id, new_task);
+            self.task = Some(new_task);
+            return;
+        };
+
         self.execute(action);
+
     }
 
     pub(super) fn execute(&mut self, action: Action) {
@@ -696,6 +714,7 @@ impl Explorer {
         logging::task_completed(self.id, target, bonus, self.wallet.coins);
         self.task = None;
     }
+
 
     /// Pays for one accepted move at the price of the regime in force now.
     fn charge_move(&mut self) {

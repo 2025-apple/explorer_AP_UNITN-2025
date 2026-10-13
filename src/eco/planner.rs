@@ -8,8 +8,8 @@ use std::collections::{HashMap, HashSet};
 use common_game::components::resource::{BasicResourceType, ComplexResourceType};
 use common_game::utils::ID;
 
-use super::recipes::{build_plan_for, recipe_of, BuildPlan, Ingredient};
-use super::regime::{CostTable, EconomyRegime, ForecastMode};
+
+use super::recipes::{is_step_ready, remaining_work};use super::regime::{CostTable, EconomyRegime, ForecastMode};
 use super::time::CYCLES_PER_DAY;
 use super::world::WorldModel;
 
@@ -32,16 +32,19 @@ impl Planner {
         current_planet: ID,
         world: &WorldModel,
         bag_basics: &HashMap<BasicResourceType, u32>,
-        bag_complex: &HashSet<ComplexResourceType>,
+        bag_complex: &HashMap<ComplexResourceType, u32>,
         regime: EconomyRegime,
         costs: CostTable,
         forecast: &ForecastMode,
     ) -> Action {
-        let plan = build_plan_for(target);
+        let remaining = remaining_work(target, bag_basics, bag_complex);
 
-        // 1. Prefer combining once a step's ingredients are satisfied —
-        //    it clears bag slots and moves the plan toward completion.
-        if let Some(step) = Self::next_ready_combine(&plan, bag_basics, bag_complex) {
+        // 1. A combine whose ingredients are all in the bag.
+        if let Some(&step) = remaining
+            .steps_to_run
+            .iter()
+            .find(|&&s| is_step_ready(s, bag_basics, bag_complex))
+        {
             if world.combos.get(&current_planet).is_some_and(|s| s.contains(&step)) {
                 return Self::maybe_wait(Action::Combine(step), costs.combine, regime, costs.stay, forecast);
             }
@@ -51,56 +54,32 @@ impl Planner {
             };
         }
 
-        // 2. Otherwise, go get the next missing basic resource.
-        if let Some(missing) = Self::next_missing_basic(&plan, bag_basics) {
-            if world.resources.get(&current_planet).is_some_and(|s| s.contains(&missing)) {
+        // 2. Otherwise we need basics.
+        if !remaining.basics_to_mine.is_empty() {
+            // 2a. This planet supplies one of them: mine it here.
+            let here = world.resources.get(&current_planet);
+            if let Some(&missing) = remaining
+                .basics_to_mine
+                .iter()
+                .find(|b| here.is_some_and(|s| s.contains(b)))
+            {
                 return Self::maybe_wait(Action::Mine(missing), costs.mine, regime, costs.stay, forecast);
             }
-            return match world.nearest_known_source(current_planet, missing) {
+            // 2b. Otherwise walk to the nearest known planet that supplies any of them.
+            let nearest = remaining
+                .basics_to_mine
+                .iter()
+                .filter_map(|&b| world.nearest_known_source(current_planet, b))
+                .min_by_key(|path| path.len());
+            return match nearest {
                 Some(path) => Self::step_along(path, regime, costs, forecast),
                 None => Self::explore_or_request(current_planet, world),
             };
         }
 
-        // Nothing outstanding — caller checks the bag for the finished
-        // target on the next tick. Idle safely in the meantime.
         Action::Stay
     }
 
-    fn next_missing_basic(
-        plan: &BuildPlan,
-        bag_basics: &HashMap<BasicResourceType, u32>,
-    ) -> Option<BasicResourceType> {
-        let mut needed: HashMap<BasicResourceType, u32> = HashMap::new();
-        for &b in &plan.basics_needed {
-            *needed.entry(b).or_insert(0) += 1;
-        }
-        needed
-            .into_iter()
-            .find(|(bt, need_count)| bag_basics.get(bt).copied().unwrap_or(0) < *need_count)
-            .map(|(bt, _)| bt)
-    }
-
-    fn next_ready_combine(
-        plan: &BuildPlan,
-        bag_basics: &HashMap<BasicResourceType, u32>,
-        bag_complex: &HashSet<ComplexResourceType>,
-    ) -> Option<ComplexResourceType> {
-        for &step in &plan.combine_steps {
-            if bag_complex.contains(&step) {
-                continue; // already built
-            }
-            let (a, b) = recipe_of(step);
-            let ready = [a, b].iter().all(|ing| match ing {
-                Ingredient::Basic(bt) => bag_basics.get(bt).copied().unwrap_or(0) > 0,
-                Ingredient::Complex(ct) => bag_complex.contains(ct),
-            });
-            if ready {
-                return Some(step);
-            }
-        }
-        None
-    }
 
     /// First hop of a known BFS path, subject to the wait-vs-act check.
     /// `Stay` if we're already at the destination (path of length 1).

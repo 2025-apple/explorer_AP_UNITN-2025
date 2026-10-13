@@ -20,7 +20,7 @@ fn three_planet_line(outgoing_first: bool) -> Galaxy {
         3,
         PlanetType::B,
         vec![BasicResourceType::Carbon],
-        vec![ComplexResourceType::Water],
+        vec![ComplexResourceType::Diamond],
     ));
     galaxy.connect(1, 2);
     galaxy.connect(2, 3);
@@ -37,10 +37,10 @@ fn run_scenario(outgoing_first: bool) {
     let _ = env_logger::builder().is_test(true).try_init();
 
     let galaxy = three_planet_line(outgoing_first);
-    let eco = spawn_explorer_with_task(1, galaxy.planet(1), ComplexResourceType::Water);
+    let eco = spawn_explorer_with_task(1, galaxy.planet(1), ComplexResourceType::Diamond);
     eco.send(OrchestratorToExplorer::StartExplorerAI);
 
-    let water = ResourceType::Complex(ComplexResourceType::Water);
+    let water = ResourceType::Complex(ComplexResourceType::Diamond);
     assert!(
         galaxy.serve_until_bag_contains(&eco, water, Duration::from_secs(40)),
         "Eco did not build Water within 40 s"
