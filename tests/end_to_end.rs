@@ -14,12 +14,12 @@ use common_game::protocols::orchestrator_explorer::OrchestratorToExplorer;
 /// Eco starts on planet 1 with the task "Water" (Hydrogen + Oxygen).
 fn three_planet_line(outgoing_first: bool) -> Galaxy {
     let mut galaxy = Galaxy::new(outgoing_first);
-    galaxy.add_planet(TestPlanet::spawn(1, PlanetType::A, vec![BasicResourceType::Hydrogen], vec![]));
+    galaxy.add_planet(TestPlanet::spawn(1, PlanetType::A, vec![BasicResourceType::Carbon], vec![]));
     galaxy.add_planet(TestPlanet::spawn(2, PlanetType::A, vec![BasicResourceType::Oxygen], vec![]));
     galaxy.add_planet(TestPlanet::spawn(
         3,
         PlanetType::B,
-        vec![BasicResourceType::Carbon],
+        vec![BasicResourceType::Hydrogen],
         vec![ComplexResourceType::Diamond],
     ));
     galaxy.connect(1, 2);
@@ -29,7 +29,7 @@ fn three_planet_line(outgoing_first: bool) -> Galaxy {
         galaxy.planet(1).sunray();
         galaxy.planet(2).sunray();
     }
-    galaxy.planet(3).sunray();
+    galaxy.planet(3).sunray(); // exactly the one charge the combine needs
     galaxy
 }
 
@@ -40,10 +40,10 @@ fn run_scenario(outgoing_first: bool) {
     let eco = spawn_explorer_with_task(1, galaxy.planet(1), ComplexResourceType::Diamond);
     eco.send(OrchestratorToExplorer::StartExplorerAI);
 
-    let water = ResourceType::Complex(ComplexResourceType::Diamond);
+    let diamond = ResourceType::Complex(ComplexResourceType::Diamond);
     assert!(
-        galaxy.serve_until_bag_contains(&eco, water, Duration::from_secs(40)),
-        "Eco did not build Water within 40 s"
+        galaxy.serve_until_bag_contains(&eco, diamond, Duration::from_secs(40)),
+        "Eco did not build a Diamond within 40 s"
     );
     // `eco` is dropped before `galaxy`, so Eco stops before its planets do.
 }

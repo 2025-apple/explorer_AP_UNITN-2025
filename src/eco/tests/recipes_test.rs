@@ -2,7 +2,7 @@ use std::collections::HashMap;
 
 use common_game::components::resource::{BasicResourceType as B, ComplexResourceType as C};
 
-use crate::eco::recipes::{is_step_ready, remaining_work, Remaining};
+use crate::eco::recipes::{is_step_ready, remaining_work, Remaining, task_pool, ALL_COMPLEX_RESOURCES};
 
 fn count<T: PartialEq>(v: &[T], x: T) -> usize {
     v.iter().filter(|e| **e == x).count()
@@ -59,4 +59,24 @@ fn readiness_needs_complex_ingredients_too() {
     let carbon = HashMap::from([(B::Carbon, 1)]);
     assert!(!is_step_ready(C::Life, &carbon, &HashMap::new()));
     assert!(is_step_ready(C::Life, &carbon, &HashMap::from([(C::Water, 1)])));
+}
+
+#[test]
+fn a_new_task_is_never_a_type_already_held() {
+    let held = HashMap::from([(C::Water, 1), (C::Diamond, 2)]);
+    let pool = task_pool(&held);
+    assert!(!pool.contains(&C::Water));
+    assert!(!pool.contains(&C::Diamond));
+    assert_eq!(pool.len(), 4);
+}
+
+#[test]
+fn with_an_empty_bag_every_type_is_a_possible_task() {
+    assert_eq!(task_pool(&HashMap::new()).len(), 6);
+}
+
+#[test]
+fn if_everything_is_held_any_type_is_allowed_again() {
+    let held: HashMap<C, u32> = ALL_COMPLEX_RESOURCES.iter().map(|&t| (t, 1)).collect();
+    assert_eq!(task_pool(&held).len(), 6);
 }

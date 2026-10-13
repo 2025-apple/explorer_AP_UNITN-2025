@@ -3,7 +3,7 @@
 //! latest prices and the latest bit of the world graph learned, rather
 //! than committing to a long plan that a regime flip could invalidate.
 
-use std::collections::{HashMap, HashSet};
+use std::collections::HashMap;
 
 use common_game::components::resource::{BasicResourceType, ComplexResourceType};
 use common_game::utils::ID;

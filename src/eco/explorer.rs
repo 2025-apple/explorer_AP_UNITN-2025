@@ -23,7 +23,7 @@ use common_game::utils::ID;
 use super::bag::Bag;
 use super::logging;
 use super::planner::{Action, Planner};
-use super::recipes::ALL_COMPLEX_RESOURCES;
+use super::recipes::{ALL_COMPLEX_RESOURCES,task_pool};
 use super::regime::{ForecastMode, RegimeEstimator};
 use super::time::EconomyClock;
 use super::wallet::Wallet;
@@ -590,7 +590,8 @@ impl Explorer {
         }
 
         let Some(target) = self.task else {
-            let new_task = ALL_COMPLEX_RESOURCES[self.rng.random_range(0..ALL_COMPLEX_RESOURCES.len())];
+            let pool = task_pool(&self.bag.complex_counts());
+            let new_task = pool[self.rng.random_range(0..pool.len())];
             logging::task_assigned(self.id, new_task);
             self.task = Some(new_task);
             return;
@@ -633,22 +634,6 @@ impl Explorer {
             self.clock.costs(),
             &forecast,
         );
-
-        let Some(target) = self.task else {
-            let held = self.bag.complex_counts();
-            let mut pool: Vec<_> = ALL_COMPLEX_RESOURCES
-                .iter()
-                .copied()
-                .filter(|t| held.get(t).copied().unwrap_or(0) == 0)
-                .collect();
-            if pool.is_empty() {
-                pool = ALL_COMPLEX_RESOURCES.to_vec();
-            }
-            let new_task = pool[self.rng.random_range(0..pool.len())];
-            logging::task_assigned(self.id, new_task);
-            self.task = Some(new_task);
-            return;
-        };
 
         self.execute(action);
 

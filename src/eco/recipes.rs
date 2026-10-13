@@ -100,3 +100,18 @@ pub const ALL_COMPLEX_RESOURCES: [ComplexResourceType; 6] = [
     ComplexResourceType::Dolphin,
     ComplexResourceType::AIPartner,
 ];
+
+/// Tasks Eco may be given next: the types it does not already hold.
+/// If it holds all six, any type is allowed.
+pub fn task_pool(held: &HashMap<ComplexResourceType, u32>) -> Vec<ComplexResourceType> {
+    let pool: Vec<_> = ALL_COMPLEX_RESOURCES
+        .iter()
+        .copied()
+        .filter(|t| held.get(t).copied().unwrap_or(0) == 0)
+        .collect();
+    if pool.is_empty() {
+        ALL_COMPLEX_RESOURCES.to_vec()
+    } else {
+        pool
+    }
+}
