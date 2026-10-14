@@ -10,7 +10,7 @@ use common_game::protocols::planet_explorer::{
     ExplorerToPlanet, ExplorerToPlanetKind, PlanetToExplorer,
 };
 
-use crate::eco::explorer::{BagContent, Explorer};
+use crate::eco::explorer::{BagContent, Explorer, STARTING_COINS};
 
 type FromEco = Receiver<ExplorerToOrchestrator<BagContent>>;
 
@@ -90,7 +90,7 @@ fn discovery_asks_the_planet_once_and_costs_nothing() {
         Some(&HashSet::from([ComplexResourceType::Diamond]))
     );
     // Free and not a clock event: 4 steps = 4 ticks, no charge.
-    assert_eq!(eco.wallet.coins, 120);
+    assert_eq!(eco.wallet.coins, STARTING_COINS);
     assert_eq!(eco.clock.cycle_in_day, 4);
     // The orchestrator was never asked about capabilities: it only got the
     // (free) neighbors request.

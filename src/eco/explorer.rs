@@ -133,6 +133,9 @@ pub struct Explorer {
     pub(super) comms: Comms,
 }
 
+/// Coins Eco starts day 1 with (design choice, see the economy notes).
+pub(crate) const STARTING_COINS: i64 = 18;
+
 impl Explorer {
     pub(super) fn new(
         id: ID,
@@ -159,13 +162,14 @@ impl Explorer {
             ai_active: false,
             should_stop: false,
             clock: EconomyClock::new(),
-            wallet: Wallet::new(18), // spec: Eco starts day 1 with 18 coins
+            wallet: Wallet::new(STARTING_COINS), // spec: Eco starts day 1 with 18 coins
             estimator: RegimeEstimator::new(),
             world,
             comms: Comms::new(),
             task: None,
             blind_mode,
             rng: StdRng::from_rng(&mut rand::rng()),
+
         }
     }
 

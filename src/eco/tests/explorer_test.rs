@@ -7,6 +7,9 @@ use crate::eco::explorer::{BagContent, Explorer};
 use crate::eco::planner::Action;
 use crate::eco::recipes::task_effort;
 
+use crate::eco::explorer::STARTING_COINS;
+use crate::eco::regime::EconomyRegime;
+
 struct Rig {
     explorer: Explorer,
     from_explorer: Receiver<ExplorerToOrchestrator<BagContent>>,
@@ -35,7 +38,7 @@ fn first_step_assigns_task_without_charging() {
     let mut r = rig();
     r.explorer.ai_step();
     assert!(r.explorer.task.is_some());
-    assert_eq!(r.explorer.wallet.coins, 120);
+    assert_eq!(r.explorer.wallet.coins, STARTING_COINS);
     assert_eq!(r.explorer.clock.cycle_in_day, 1); // the step still ticked once
 }
 
@@ -45,19 +48,24 @@ fn five_steps_make_one_day_and_credit_income() {
     for _ in 0..5 {
         r.explorer.ai_step();
     }
+    let n = EconomyRegime::Neutral.costs();
     // With an empty world the planner only asks for neighbors (free),
     // so the only wallet change is one Neutral day of income.
     assert_eq!(r.explorer.clock.day, 2);
-    assert_eq!(r.explorer.wallet.coins, 120 + 120);
+
+    assert_eq!(r.explorer.wallet.coins, STARTING_COINS + i64::from(n.daily_income));
 }
 
 #[test]
 fn stay_charges_current_price_and_neighbor_request_is_free() {
     let mut r = rig();
     r.explorer.execute(Action::Stay);
-    assert_eq!(r.explorer.wallet.coins, 120 - 4); // Neutral stay
+
+    let n = EconomyRegime::Neutral.costs();
+    assert_eq!(r.explorer.wallet.coins, STARTING_COINS - i64::from(n.stay));
+
     r.explorer.execute(Action::RequestNeighbors);
-    assert_eq!(r.explorer.wallet.coins, 120 - 4);
+    assert_eq!(r.explorer.wallet.coins, STARTING_COINS - i64::from(n.stay));
     assert!(matches!(
         r.from_explorer.try_recv(),
         Ok(ExplorerToOrchestrator::NeighborsRequest { .. })
@@ -85,9 +93,10 @@ fn waiting_for_a_reply_changes_neither_the_clock_nor_the_wallet() {
     for _ in 0..10 {
         r.explorer.ai_step();
     }
+    let n = EconomyRegime::Neutral.costs();
+    assert_eq!(r.explorer.wallet.coins, STARTING_COINS + 2 * i64::from(n.daily_income));
     assert_eq!(r.explorer.clock.day, 3);
     assert_eq!(r.explorer.clock.cycle_in_day, 0);
-    assert_eq!(r.explorer.wallet.coins, 120 + 120 + 120); // two Neutral incomes, no charges
 }
 
 #[test]
@@ -142,7 +151,7 @@ fn refuse_move(r: &mut Rig, to: u32) {
 fn requesting_a_move_is_free() {
     let mut r = rig();
     r.explorer.execute(Action::Move(7));
-    assert_eq!(r.explorer.wallet.coins, 120);
+    assert_eq!(r.explorer.wallet.coins, STARTING_COINS);
     assert!(matches!(
         r.from_explorer.try_recv(),
         Ok(ExplorerToOrchestrator::TravelToPlanetRequest { dst_planet_id: 7, .. })
@@ -151,22 +160,24 @@ fn requesting_a_move_is_free() {
 
 #[test]
 fn an_accepted_move_is_charged_once_at_the_current_price() {
+    let n = EconomyRegime::Neutral.costs();
     let mut r = rig();
     r.explorer.execute(Action::Move(7));
     accept_move(&mut r, 7);
-    assert_eq!(r.explorer.wallet.coins, 120 - 10); // Neutral move price
+    assert_eq!(r.explorer.wallet.coins, STARTING_COINS - i64::from(n.mv)); // Neutral move price
     assert_eq!(r.explorer.current_planet_id, 7);
     accept_move(&mut r, 7); // "moving" to where we already are
-    assert_eq!(r.explorer.wallet.coins, 120 - 10);
+    assert_eq!(r.explorer.wallet.coins, STARTING_COINS - i64::from(n.mv)); // not charged again
 }
 
 #[test]
 fn a_move_is_paid_at_the_price_in_force_when_it_is_accepted() {
+    let rec = EconomyRegime::Recession.costs();
     let mut r = rig();
     r.explorer.execute(Action::Move(7)); // requested during Neutral
-    r.explorer.clock.regime = crate::eco::regime::EconomyRegime::Recession;
+    r.explorer.clock.regime = EconomyRegime::Recession;
     accept_move(&mut r, 7);
-    assert_eq!(r.explorer.wallet.coins, 120 - 12); // Recession move price
+    assert_eq!(r.explorer.wallet.coins, STARTING_COINS - i64::from(rec.mv)); // Recession move price
 }
 
 #[test]
@@ -174,7 +185,7 @@ fn a_rejected_move_is_free_and_starts_a_cooldown() {
     let mut r = rig();
     r.explorer.execute(Action::Move(7));
     refuse_move(&mut r, 7);
-    assert_eq!(r.explorer.wallet.coins, 120);
+    assert_eq!(r.explorer.wallet.coins, STARTING_COINS);
     assert_eq!(r.explorer.current_planet_id, 100);
     assert_eq!(r.explorer.comms.pending, crate::eco::comms::Pending::Idle);
     assert!(!r.explorer.comms.may_act(std::time::Instant::now()));
@@ -190,9 +201,10 @@ fn a_refusal_about_another_planet_leaves_the_pending_request_alone() {
 
 #[test]
 fn a_move_started_by_the_orchestrator_is_charged_too() {
+    let n = EconomyRegime::Neutral.costs();
     let mut r = rig();
     accept_move(&mut r, 9);
-    assert_eq!(r.explorer.wallet.coins, 120 - 10);
+    assert_eq!(r.explorer.wallet.coins, STARTING_COINS - i64::from(n.mv));
     assert_eq!(r.explorer.current_planet_id, 9);
     assert!(r.explorer.world.visited.contains(&9));
 }
@@ -259,6 +271,7 @@ fn a_travel_request_that_times_out_invalidates_the_exits() {
 
 #[test]
 fn an_exhausted_frontier_idles_for_free_instead_of_asking_again() {
+    let n = EconomyRegime::Neutral.costs();
     let mut r = rig();
     r.explorer.task = Some(ComplexResourceType::Water);
     // Everything known about planet 100, and nowhere left to explore.
@@ -269,7 +282,7 @@ fn an_exhausted_frontier_idles_for_free_instead_of_asking_again() {
         r.explorer.ai_step();
     }
     assert!(r.from_explorer.try_recv().is_err()); // nothing was sent
-    assert_eq!(r.explorer.wallet.coins, 120 + 120); // one day of income, no charges
+    assert_eq!(r.explorer.wallet.coins, STARTING_COINS + i64::from(n.daily_income)); // one day of income, no charges
     assert_eq!(r.explorer.comms.pending, crate::eco::comms::Pending::Idle);
 }
 
