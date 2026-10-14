@@ -606,7 +606,10 @@ impl Explorer {
                 pool = task_pool(&self.bag.complex_counts());
             }
             let new_task = pool[self.rng.random_range(0..pool.len())];
-            // ... the rest of the block stays as it is
+            logging::task_assigned(self.id, new_task);
+            self.task = Some(new_task);
+            return;
+        };
 
         let complex = self.bag.complex_counts();
         if complex.get(&target).copied().unwrap_or(0) > 0 {
