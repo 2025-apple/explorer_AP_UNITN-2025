@@ -5,6 +5,7 @@ use common_game::components::resource::{BasicResourceType, ComplexResourceType};
 use common_game::utils::ID;
 
 use super::regime::EconomyRegime;
+use super::planner::Action;
 
 // ---- Protocol / lifecycle ----
 
@@ -72,4 +73,8 @@ pub(crate) fn mine_failed(id: ID, resource: BasicResourceType, reason: &str) {
 
 pub(crate) fn combine_failed(id: ID, target: ComplexResourceType, reason: &str) {
     log::debug!("Explorer {id}: combine {target:?} failed: {reason}");
+}
+
+pub(crate) fn action_taken(id: ID, planet_id: ID, action: &Action, coins: i64) {
+    log::info!("Explorer {id}: on planet {planet_id} -> {action:?} ({coins} coins)");
 }

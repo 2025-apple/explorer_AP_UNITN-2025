@@ -640,6 +640,7 @@ impl Explorer {
     }
 
     pub(super) fn execute(&mut self, action: Action) {
+        logging::action_taken(self.id, self.current_planet_id, &action, self.wallet.coins);
         let costs = self.clock.costs();
         match action {
             Action::Stay => {
