@@ -341,3 +341,30 @@ fn stop_enters_manual_mode_and_drops_pending_requests() {
         .try_iter()
         .any(|m| matches!(m, ExplorerToOrchestrator::StopExplorerAIResult { .. })));
 }
+
+#[test]
+fn an_impossible_task_is_swapped_for_one_the_galaxy_can_deliver() {
+    use common_game::components::resource::BasicResourceType as B;
+    use std::collections::HashSet;
+    let mut r = rig();
+    r.explorer.task = Some(ComplexResourceType::Robot); // needs Silicon: nobody supplies it
+    // The whole known galaxy is planet 100: Carbon, and it can make Diamond.
+    r.explorer.world.record_resources(100, HashSet::from([B::Carbon]));
+    r.explorer.world.record_combos(100, HashSet::from([ComplexResourceType::Diamond]));
+    r.explorer.world.record_neighbors(100, vec![]);
+    r.explorer.ai_step();
+    assert_eq!(r.explorer.task, Some(ComplexResourceType::Diamond));
+}
+
+#[test]
+fn a_task_is_kept_while_there_is_still_something_to_explore() {
+    use common_game::components::resource::BasicResourceType as B;
+    use std::collections::HashSet;
+    let mut r = rig();
+    r.explorer.task = Some(ComplexResourceType::Robot);
+    r.explorer.world.record_resources(100, HashSet::from([B::Carbon]));
+    r.explorer.world.record_combos(100, HashSet::from([ComplexResourceType::Diamond]));
+    r.explorer.world.record_neighbors(100, vec![5]); // planet 5 was never visited
+    r.explorer.ai_step();
+    assert_eq!(r.explorer.task, Some(ComplexResourceType::Robot));
+}
