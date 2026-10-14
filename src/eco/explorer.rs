@@ -577,6 +577,16 @@ impl Explorer {
 
     // ==================== Autonomous AI: economy + planning ====================
 
+    /// Tasks Eco could be given that the known galaxy can still deliver.
+    fn feasible_tasks(&self) -> Vec<ComplexResourceType> {
+        let held = self.bag.complex_counts();
+        let basics = self.bag.basic_counts();
+        task_pool(&held)
+            .into_iter()
+            .filter(|&t| Planner::is_feasible(t, &self.world, &basics, &held))
+            .collect()
+    }
+
     pub(super) fn ai_step(&mut self) {
         if let Some((ended_regime, len)) = self.clock.tick(&mut self.rng) {
             self.estimator.observe(ended_regime, len);
@@ -590,12 +600,13 @@ impl Explorer {
         }
 
         let Some(target) = self.task else {
-            let pool = task_pool(&self.bag.complex_counts());
+            let mut pool = self.feasible_tasks();
+            if pool.is_empty() {
+                // Nothing known yet (start of the run): any type is fair game.
+                pool = task_pool(&self.bag.complex_counts());
+            }
             let new_task = pool[self.rng.random_range(0..pool.len())];
-            logging::task_assigned(self.id, new_task);
-            self.task = Some(new_task);
-            return;
-        };
+            // ... the rest of the block stays as it is
 
         let complex = self.bag.complex_counts();
         if complex.get(&target).copied().unwrap_or(0) > 0 {
@@ -614,6 +625,22 @@ impl Explorer {
         }
 
         self.discover_current_planet();
+
+            // A task the known galaxy can no longer deliver (say, the only Silicon
+            // planet was destroyed) would never finish. Swap it, but only once there
+            // is nothing left to explore and some other task is possible.
+            if self.world.neighbors.contains_key(&self.current_planet_id)
+                && self.world.nearest_unexplored(self.current_planet_id).is_none()
+                && !Planner::is_feasible(target, &self.world, &self.bag.basic_counts(), &complex)
+            {
+                let alternatives = self.feasible_tasks();
+                if !alternatives.is_empty() {
+                    let new_task = alternatives[self.rng.random_range(0..alternatives.len())];
+                    logging::task_abandoned(self.id, target, new_task);
+                    self.task = Some(new_task);
+                    return;
+                }
+            }
 
         let forecast = if self.blind_mode {
             ForecastMode::Blind {
@@ -641,6 +668,14 @@ impl Explorer {
 
     pub(super) fn execute(&mut self, action: Action) {
         logging::action_taken(self.id, self.current_planet_id, &action, self.wallet.coins);
+        log::info!(
+            "Explorer {}: idle on planet {}: task {:?}, bag {:?}, neighbors {:?}",
+            self.id,
+            self.current_planet_id,
+            self.task,
+            self.bag.contents(),
+            self.world.neighbors,
+        );
         let costs = self.clock.costs();
         match action {
             Action::Stay => {

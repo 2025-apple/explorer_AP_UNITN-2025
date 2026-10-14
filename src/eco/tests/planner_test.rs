@@ -72,3 +72,37 @@ fn life_with_water_in_bag_asks_only_for_carbon() {
     let a = act(C::Life, 1, &w, HashMap::new(), HashMap::from([(C::Water, 1)]));
     assert!(matches!(a, Action::Mine(B::Carbon)));
 }
+
+#[test]
+fn feasible_when_every_ingredient_has_a_known_planet() {
+    let mut w = WorldModel::default();
+    w.record_resources(1, HashSet::from([B::Carbon]));
+    w.record_combos(1, HashSet::from([C::Diamond]));
+    assert!(Planner::is_feasible(C::Diamond, &w, &HashMap::new(), &HashMap::new()));
+}
+
+#[test]
+fn infeasible_without_a_known_combiner() {
+    let mut w = WorldModel::default();
+    w.record_resources(1, HashSet::from([B::Carbon]));
+    assert!(!Planner::is_feasible(C::Diamond, &w, &HashMap::new(), &HashMap::new()));
+}
+
+#[test]
+fn infeasible_when_no_known_planet_supplies_silicon() {
+    // the real failure: Robot needs Silicon, and planet 4 (its only supplier) is gone
+    let mut w = WorldModel::default();
+    w.record_resources(2, HashSet::from([B::Carbon, B::Hydrogen, B::Oxygen]));
+    w.record_combos(7, HashSet::from([C::Water, C::Life, C::Robot]));
+    assert!(!Planner::is_feasible(C::Robot, &w, &HashMap::new(), &HashMap::new()));
+}
+
+#[test]
+fn held_stock_makes_a_task_feasible_again() {
+    // AIPartner = Robot + Diamond; holding both Robot and Diamond, only the
+    // final combine is left, so no supplier is needed at all
+    let mut w = WorldModel::default();
+    w.record_combos(7, HashSet::from([C::AIPartner]));
+    let held = HashMap::from([(C::Robot, 1), (C::Diamond, 1)]);
+    assert!(Planner::is_feasible(C::AIPartner, &w, &HashMap::new(), &held));
+}

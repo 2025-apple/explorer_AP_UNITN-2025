@@ -46,7 +46,9 @@ pub(crate) fn planet_stopped(id: ID) {
 }
 
 // ---- Economy ----
-
+pub(crate) fn task_abandoned(id: ID, old: ComplexResourceType, new: ComplexResourceType) {
+    log::info!("Explorer {id}: task {old:?} can no longer be delivered, switching to {new:?}");
+}
 pub(crate) fn regime_ended(id: ID, ended: EconomyRegime, days: u32, new_regime: EconomyRegime) {
     log::info!("Explorer {id}: regime {ended:?} ended after {days} days, entering {new_regime:?}");
 }
