@@ -25,25 +25,25 @@ impl EconomyRegime {
     pub fn costs(self) -> CostTable {
         match self {
             EconomyRegime::Neutral => CostTable {
-                mv: 10,
+                mv: 4,
                 stay: 4,
-                mine: 2,
+                mine: 4,
                 combine: 4,
-                daily_income: 120,
+                daily_income: 12,
             },
             EconomyRegime::Flourish => CostTable {
-                mv: 8,
+                mv: 5,
                 stay: 2,
                 mine: 1,
                 combine: 3,
-                daily_income: 200,
+                daily_income: 20,
             },
             EconomyRegime::Recession => CostTable {
-                mv: 12,
+                mv: 9,
                 stay: 7,
                 mine: 5,
                 combine: 6,
-                daily_income: 50,
+                daily_income: 16,
             },
         }
     }

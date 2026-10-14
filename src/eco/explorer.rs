@@ -23,7 +23,7 @@ use common_game::utils::ID;
 use super::bag::Bag;
 use super::logging;
 use super::planner::{Action, Planner};
-use super::recipes::{ALL_COMPLEX_RESOURCES,task_pool};
+use super::recipes::{ALL_COMPLEX_RESOURCES,task_pool, task_effort};
 use super::regime::{ForecastMode, RegimeEstimator};
 use super::time::EconomyClock;
 use super::wallet::Wallet;
@@ -159,7 +159,7 @@ impl Explorer {
             ai_active: false,
             should_stop: false,
             clock: EconomyClock::new(),
-            wallet: Wallet::new(120), // spec: Eco starts day 1 with 120 coins
+            wallet: Wallet::new(18), // spec: Eco starts day 1 with 18 coins
             estimator: RegimeEstimator::new(),
             world,
             comms: Comms::new(),
@@ -729,9 +729,10 @@ impl Explorer {
         }
     }
 
-
     pub(super) fn complete_task(&mut self, target: ComplexResourceType) {
-        let bonus = (self.wallet.coins.max(0) / 2) as u32;
+        /// Coins paid per unit of work (one mined basic or one combine) when a task is done.
+        const BONUS_PER_STEP: u32 = 20;
+        let bonus = BONUS_PER_STEP * task_effort(target);
         self.wallet.credit(bonus);
         logging::task_completed(self.id, target, bonus, self.wallet.coins);
         self.task = None;

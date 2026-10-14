@@ -5,6 +5,7 @@ use crossbeam_channel::{unbounded, Receiver, Sender};
 
 use crate::eco::explorer::{BagContent, Explorer};
 use crate::eco::planner::Action;
+use crate::eco::recipes::task_effort;
 
 struct Rig {
     explorer: Explorer,
@@ -61,24 +62,6 @@ fn stay_charges_current_price_and_neighbor_request_is_free() {
         r.from_explorer.try_recv(),
         Ok(ExplorerToOrchestrator::NeighborsRequest { .. })
     ));
-}
-
-#[test]
-fn completing_a_task_pays_half_the_balance() {
-    let mut r = rig();
-    r.explorer.wallet.coins = 101;
-    r.explorer.task = Some(ComplexResourceType::Water);
-    r.explorer.complete_task(ComplexResourceType::Water);
-    assert_eq!(r.explorer.wallet.coins, 101 + 50); // integer half
-    assert!(r.explorer.task.is_none());
-}
-
-#[test]
-fn completing_a_task_in_debt_pays_nothing() {
-    let mut r = rig();
-    r.explorer.wallet.coins = -10;
-    r.explorer.complete_task(ComplexResourceType::Water);
-    assert_eq!(r.explorer.wallet.coins, -10);
 }
 
 #[test]
@@ -367,4 +350,31 @@ fn a_task_is_kept_while_there_is_still_something_to_explore() {
     r.explorer.world.record_neighbors(100, vec![5]); // planet 5 was never visited
     r.explorer.ai_step();
     assert_eq!(r.explorer.task, Some(ComplexResourceType::Robot));
+}
+
+#[test]
+fn completing_a_task_pays_a_bonus_proportional_to_its_effort() {
+    let mut r = rig();
+    r.explorer.wallet.coins = 101;
+    r.explorer.task = Some(ComplexResourceType::Water);
+    r.explorer.complete_task(ComplexResourceType::Water);
+    assert_eq!(r.explorer.wallet.coins, 101 + 20 * 3); // 2 basics + 1 combine
+    assert!(r.explorer.task.is_none());
+}
+
+#[test]
+fn the_bonus_does_not_depend_on_the_balance() {
+    let mut poor = rig();
+    poor.explorer.wallet.coins = 0;
+    poor.explorer.complete_task(ComplexResourceType::Diamond);
+    let mut rich = rig();
+    rich.explorer.wallet.coins = 100_000;
+    rich.explorer.complete_task(ComplexResourceType::Diamond);
+    assert_eq!(poor.explorer.wallet.coins, 60);
+    assert_eq!(rich.explorer.wallet.coins, 100_060);
+}
+
+#[test]
+fn a_harder_task_pays_more() {
+    assert!(task_effort(ComplexResourceType::AIPartner) > task_effort(ComplexResourceType::Water));
 }

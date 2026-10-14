@@ -45,6 +45,13 @@ pub fn remaining_work(
     out
 }
 
+/// How much work building `target` from nothing takes: basics to mine
+/// plus combines to run. Used to price the completion bonus.
+pub fn task_effort(target: ComplexResourceType) -> u32 {
+    let work = remaining_work(target, &HashMap::new(), &HashMap::new());
+    (work.basics_to_mine.len() + work.steps_to_run.len()) as u32
+}
+
 /// Top-down: use a held unit if there is one, otherwise plan to build it.
 fn allocate(
     target: ComplexResourceType,
