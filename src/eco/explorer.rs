@@ -671,9 +671,7 @@ impl Explorer {
             }
             Action::RequestNeighbors => {
                 if self.world.neighbors.contains_key(&self.current_planet_id) {
-                    // Exits already known and nothing left to explore: nothing to
-                    // ask. Idle for free (this is not a Stay, so no charge).
-                    log::debug!("explorer {}: frontier exhausted, idling", self.id);
+                    log::info!("Explorer {}: idle on planet {}: task {:?}, exits {:?}, suppliers {:?}, combiners {:?}", self.id, self.current_planet_id, self.task, self.world.neighbors.get(&self.current_planet_id), self.world.resources, self.world.combos,);
                 } else {
                     let _ = self.to_orchestrator.send(ExplorerToOrchestrator::NeighborsRequest {
                         explorer_id: self.id,
