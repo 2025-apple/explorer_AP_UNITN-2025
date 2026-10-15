@@ -29,8 +29,7 @@ use super::wallet::Wallet;
 use super::world::WorldModel;
 use super::comms::{Comms,Pending};
 use super::recipes::task_pool;
-use super::status::EcoStatus;
-
+use super::status::{EcoStatus, StatusSink};
 /// Eco's bag report: resource type and how many.
 pub type BagContent = Vec<(ResourceType, usize)>;
 
@@ -132,7 +131,8 @@ pub struct Explorer {
     blind_mode: bool,
     rng: StdRng,
     pub(super) comms: Comms,
-    pub(super) waiting_for_income: bool
+    pub(super) waiting_for_income: bool,
+    pub(super) status_sink: Option<StatusSink>,
 }
 
 /// Coins Eco starts day 1 with (design choice, see the economy notes).
@@ -172,6 +172,7 @@ impl Explorer {
             blind_mode,
             rng: StdRng::from_rng(&mut rand::rng()),
             waiting_for_income: false,
+            status_sink: None,
 
         }
     }
@@ -180,6 +181,14 @@ impl Explorer {
     /// scenarios and tests. The orchestrator never needs this.
     pub fn with_task(mut self, target: ComplexResourceType) -> Self {
         self.task = Some(target);
+        self
+    }
+
+    /// Gives Eco a shared cell to publish its status into (for a status
+    /// panel). Without it Eco publishes nothing.
+    #[must_use]
+    pub fn with_status_sink(mut self, sink: StatusSink) -> Self {
+        self.status_sink = Some(sink);
         self
     }
 
@@ -210,6 +219,8 @@ impl Explorer {
             if self.ai_active {
                 self.ai_step();
             }
+
+            self.publish_status();
 
             std::thread::sleep(Duration::from_millis(100));
         }
@@ -673,23 +684,6 @@ impl Explorer {
             &forecast,
         );
 
-        /// Copies Eco's current state into a plain struct for a status panel.
-        /// Read-only: it changes nothing.
-        #[must_use]
-        pub fn status(&self) -> EcoStatus {
-            EcoStatus {
-                planet: self.current_planet_id,
-                day: self.clock.day,
-                regime: self.clock.regime,
-                coins: self.wallet.coins,
-                earned: self.wallet.earned,
-                spent: self.wallet.spent,
-                task: self.task,
-                bag: self.bag.contents(),
-                waiting_for_income: self.waiting_for_income,
-            }
-        }
-
         if !self.can_afford(&action) {
             if !self.waiting_for_income {
                 logging::waiting_for_income(self.id, &action, self.wallet.coins);
@@ -699,6 +693,32 @@ impl Explorer {
         }
         self.waiting_for_income = false;
         self.execute(action);
+    }
+
+    /// Copies Eco's current state into a plain struct for a status panel.
+    /// Read-only: it changes nothing.
+    #[must_use]
+    pub fn status(&self) -> EcoStatus {
+        EcoStatus {
+            planet: self.current_planet_id,
+            day: self.clock.day,
+            regime: self.clock.regime,
+            coins: self.wallet.coins,
+            earned: self.wallet.earned,
+            spent: self.wallet.spent,
+            task: self.task,
+            bag: self.bag.contents(),
+            waiting_for_income: self.waiting_for_income,
+        }
+    }
+
+    /// Copies the current status into the shared cell, if there is one.
+    pub(super) fn publish_status(&self) {
+        if let Some(sink) = &self.status_sink {
+            if let Ok(mut cell) = sink.lock() {
+                *cell = Some(self.status());
+            }
+        }
     }
 
     /// What `action` costs right now, in the regime in force.

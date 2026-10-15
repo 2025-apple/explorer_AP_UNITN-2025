@@ -435,3 +435,23 @@ fn status_shows_that_a_poor_eco_is_waiting() {
     r.explorer.ai_step();
     assert!(r.explorer.status().waiting_for_income);
 }
+
+#[test]
+fn publishing_copies_the_status_into_the_shared_cell() {
+    use std::sync::{Arc, Mutex};
+    let mut r = rig();
+    let sink = Arc::new(Mutex::new(None));
+    r.explorer.status_sink = Some(Arc::clone(&sink));
+    assert!(sink.lock().unwrap().is_none()); // nothing published yet
+    r.explorer.wallet.credit(5);
+    r.explorer.publish_status();
+    let published = sink.lock().unwrap().clone().expect("status was published");
+    assert_eq!(published.coins, STARTING_COINS + 5);
+    assert_eq!(published, r.explorer.status());
+}
+
+#[test]
+fn without_a_sink_publishing_does_nothing() {
+    let r = rig();
+    r.explorer.publish_status(); // must simply not panic
+}

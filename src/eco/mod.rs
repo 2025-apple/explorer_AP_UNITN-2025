@@ -40,4 +40,4 @@ pub use explorer::{create_explorer, create_explorer_oracle, Explorer,BagContent}
 mod tests;
 mod comms;
 mod status;
-pub use status::EcoStatus;
+pub use status::{EcoStatus, StatusSink};

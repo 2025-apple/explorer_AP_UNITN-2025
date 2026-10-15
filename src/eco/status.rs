@@ -21,3 +21,9 @@ pub struct EcoStatus {
     /// True while Eco holds back an action it cannot pay for yet.
     pub waiting_for_income: bool,
 }
+
+use std::sync::{Arc, Mutex};
+
+/// Shared cell Eco writes its latest status into. `None` until the first
+/// write. Whoever wants to display Eco keeps a clone of this `Arc`.
+pub type StatusSink = Arc<Mutex<Option<EcoStatus>>>;
