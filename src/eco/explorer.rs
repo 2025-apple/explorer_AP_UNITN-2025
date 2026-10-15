@@ -696,7 +696,8 @@ impl Explorer {
     }
 
     pub(super) fn can_afford(&self, action: &Action) -> bool {
-        self.wallet.coins >= i64::from(self.price_of(action))
+        let price = self.price_of(action);
+        price == 0 || self.wallet.coins >= i64::from(price)
     }
 
     pub(super) fn execute(&mut self, action: Action) {
