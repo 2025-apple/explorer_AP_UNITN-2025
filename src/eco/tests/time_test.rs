@@ -1,5 +1,5 @@
 use crate::eco::regime::EconomyRegime;
-use crate::eco::time::{EconomyClock, FLOURISH_DAYS_RANGE, RECESSION_DAYS_RANGE};
+use crate::eco::time::{EconomyClock, CYCLES_PER_DAY, FLOURISH_DAYS_RANGE, RECESSION_DAYS_RANGE};
 use rand::rngs::StdRng;
 use rand::SeedableRng;
 
@@ -16,7 +16,7 @@ fn new_clock_starts_day_one_neutral() {
 fn five_ticks_make_a_day_and_income_fires_once() {
     let mut rng = StdRng::seed_from_u64(1);
     let mut c = EconomyClock::new();
-    for _ in 0..4 {
+    for _ in 0..CYCLES_PER_DAY {
         assert!(c.tick(&mut rng).is_none());
         assert!(!c.take_income_due());
     }

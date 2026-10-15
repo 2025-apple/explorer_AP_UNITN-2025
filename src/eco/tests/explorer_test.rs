@@ -9,6 +9,7 @@ use crate::eco::recipes::task_effort;
 
 use crate::eco::explorer::STARTING_COINS;
 use crate::eco::regime::EconomyRegime;
+use crate::eco::time::CYCLES_PER_DAY;
 
 struct Rig {
     explorer: Explorer,
@@ -45,7 +46,7 @@ fn first_step_assigns_task_without_charging() {
 #[test]
 fn five_steps_make_one_day_and_credit_income() {
     let mut r = rig();
-    for _ in 0..5 {
+    for _ in 0..CYCLES_PER_DAY {
         r.explorer.ai_step();
     }
     let n = EconomyRegime::Neutral.costs();
@@ -90,7 +91,7 @@ fn a_silent_orchestrator_gets_one_neighbors_request_not_one_per_step() {
 fn waiting_for_a_reply_changes_neither_the_clock_nor_the_wallet() {
     // Same arithmetic as the 5-step test, over two days while a request is pending.
     let mut r = rig();
-    for _ in 0..10 {
+    for _ in 0..(2*CYCLES_PER_DAY) {
         r.explorer.ai_step();
     }
     let n = EconomyRegime::Neutral.costs();
@@ -278,7 +279,7 @@ fn an_exhausted_frontier_idles_for_free_instead_of_asking_again() {
     r.explorer.world.record_resources(100, std::collections::HashSet::new());
     r.explorer.world.record_combos(100, std::collections::HashSet::new());
     r.explorer.world.record_neighbors(100, vec![]);
-    for _ in 0..5 {
+    for _ in 0..CYCLES_PER_DAY {
         r.explorer.ai_step();
     }
     assert!(r.from_explorer.try_recv().is_err()); // nothing was sent

@@ -10,7 +10,7 @@ use rand::{Rng, RngExt};
 use super::regime::{CostTable, EconomyRegime};
 
 /// Cycles-per-day, fixed by spec.
-pub const CYCLES_PER_DAY: u8 = 5;
+pub const CYCLES_PER_DAY: u8 = 50;
 /// Flourish/Recession durations are "unknown" per spec; these are the
 /// ranges Eco's own RNG draws from at transition time. Tune freely — the
 /// spec only constrains Neutral's length (always 5 days).
