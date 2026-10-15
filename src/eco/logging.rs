@@ -80,3 +80,7 @@ pub(crate) fn combine_failed(id: ID, target: ComplexResourceType, reason: &str) 
 pub(crate) fn action_taken(id: ID, planet_id: ID, action: &Action, coins: i64) {
     log::info!("Explorer {id}: on planet {planet_id} -> {action:?} ({coins} coins)");
 }
+
+pub(crate) fn waiting_for_income(id: ID, action: &Action, coins: i64) {
+    log::info!("Explorer {id}: cannot afford {action:?} with {coins} coins, waiting for income");
+}

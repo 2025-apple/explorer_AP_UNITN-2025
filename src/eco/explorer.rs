@@ -131,6 +131,7 @@ pub struct Explorer {
     blind_mode: bool,
     rng: StdRng,
     pub(super) comms: Comms,
+    pub(super) waiting_for_income: bool
 }
 
 /// Coins Eco starts day 1 with (design choice, see the economy notes).
@@ -169,6 +170,7 @@ impl Explorer {
             task: None,
             blind_mode,
             rng: StdRng::from_rng(&mut rand::rng()),
+            waiting_for_income: false,
 
         }
     }
@@ -249,6 +251,7 @@ impl Explorer {
                 self.world.visited.insert(self.current_planet_id);
                 self.comms.reset();
                 self.ai_active = true;
+                self.waiting_for_income=false;
                 let _ = self.to_orchestrator.send(
                     ExplorerToOrchestrator::ResetExplorerAIResult { explorer_id: self.id },
                 );
@@ -669,8 +672,31 @@ impl Explorer {
             &forecast,
         );
 
+        if !self.can_afford(&action) {
+            if !self.waiting_for_income {
+                logging::waiting_for_income(self.id, &action, self.wallet.coins);
+            }
+            self.waiting_for_income = true;
+            return; // wait for the paycheck: no charge, no message
+        }
+        self.waiting_for_income = false;
         self.execute(action);
+    }
 
+    /// What `action` costs right now, in the regime in force.
+    fn price_of(&self, action: &Action) -> u32 {
+        let c = self.clock.costs();
+        match action {
+            Action::Stay => c.stay,
+            Action::Move(_) | Action::ExploreTowards(_) => c.mv,
+            Action::Mine(_) => c.mine,
+            Action::Combine(_) => c.combine,
+            Action::RequestNeighbors => 0, // asking is free
+        }
+    }
+
+    pub(super) fn can_afford(&self, action: &Action) -> bool {
+        self.wallet.coins >= i64::from(self.price_of(action))
     }
 
     pub(super) fn execute(&mut self, action: Action) {

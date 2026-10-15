@@ -10,6 +10,8 @@ use crate::eco::recipes::task_effort;
 use crate::eco::explorer::STARTING_COINS;
 use crate::eco::regime::EconomyRegime;
 use crate::eco::time::CYCLES_PER_DAY;
+use common_game::components::resource::BasicResourceType as B;
+use std::collections::HashSet;
 
 struct Rig {
     explorer: Explorer,
@@ -391,4 +393,30 @@ fn the_bonus_does_not_depend_on_the_balance() {
 #[test]
 fn a_harder_task_pays_more() {
     assert!(task_effort(ComplexResourceType::AIPartner) > task_effort(ComplexResourceType::Water));
+}
+
+#[test]
+fn can_afford_compares_the_balance_with_the_price_in_force() {
+    let mut r = rig();
+    let mine = i64::from(EconomyRegime::Neutral.costs().mine);
+    r.explorer.wallet.coins = mine - 1;
+    assert!(!r.explorer.can_afford(&Action::Mine(B::Carbon)));
+    r.explorer.wallet.coins = mine;
+    assert!(r.explorer.can_afford(&Action::Mine(B::Carbon)));
+    r.explorer.wallet.coins = -50;
+    assert!(r.explorer.can_afford(&Action::RequestNeighbors)); // asking is free
+}
+
+#[test]
+fn a_poor_eco_waits_instead_of_acting() {
+    let mut r = rig();
+    r.explorer.task = Some(ComplexResourceType::Diamond);
+    r.explorer.world.record_resources(100, HashSet::from([B::Carbon]));
+    r.explorer.world.record_combos(100, HashSet::from([ComplexResourceType::Diamond]));
+    r.explorer.world.record_neighbors(100, vec![]);
+    r.explorer.wallet.coins = 0; // the planner wants Mine(Carbon), which costs 4
+    r.explorer.ai_step();
+    assert_eq!(r.explorer.wallet.coins, 0);
+    assert!(r.explorer.waiting_for_income);
+    assert!(r._planet_rx.try_recv().is_err()); // the planet was never asked
 }
