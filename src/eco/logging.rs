@@ -61,8 +61,8 @@ pub(crate) fn task_assigned(id: ID, target: ComplexResourceType) {
     log::info!("Explorer {id}: assigned new task {target:?}");
 }
 
-pub(crate) fn task_completed(id: ID, target: ComplexResourceType, bonus: u32, total: i64) {
-    log::info!("Explorer {id}: completed task {target:?}, earned {bonus} bonus coins ({total} total)");
+pub(crate) fn task_completed(id: ID, target: ComplexResourceType, total: i64) {
+    log::info!("Explorer {id}: completed task {target:?} ({total} coins)");
 }
 
 pub(crate) fn in_debt(id: ID, coins: i64) {

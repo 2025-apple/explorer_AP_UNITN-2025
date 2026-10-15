@@ -5,7 +5,6 @@ use crossbeam_channel::{unbounded, Receiver, Sender};
 
 use crate::eco::explorer::{BagContent, Explorer};
 use crate::eco::planner::Action;
-use crate::eco::recipes::task_effort;
 
 use crate::eco::explorer::STARTING_COINS;
 use crate::eco::regime::EconomyRegime;
@@ -133,6 +132,7 @@ fn a_failed_mine_starts_a_cooldown() {
     r.explorer
         .execute(Action::Mine(common_game::components::resource::BasicResourceType::Carbon));
     assert!(!r.explorer.comms.may_act(std::time::Instant::now()));
+    assert_eq!(r.explorer.wallet.coins, STARTING_COINS); // a failed mine costs nothing
 }
 
 fn accept_move(r: &mut Rig, to: u32) {
@@ -368,32 +368,7 @@ fn a_task_is_kept_while_there_is_still_something_to_explore() {
     assert_eq!(r.explorer.task, Some(ComplexResourceType::Robot));
 }
 
-#[test]
-fn completing_a_task_pays_a_bonus_proportional_to_its_effort() {
-    let mut r = rig();
-    r.explorer.wallet.coins = 101;
-    r.explorer.task = Some(ComplexResourceType::Water);
-    r.explorer.complete_task(ComplexResourceType::Water);
-    assert_eq!(r.explorer.wallet.coins, 101 + 20 * 3); // 2 basics + 1 combine
-    assert!(r.explorer.task.is_none());
-}
 
-#[test]
-fn the_bonus_does_not_depend_on_the_balance() {
-    let mut poor = rig();
-    poor.explorer.wallet.coins = 0;
-    poor.explorer.complete_task(ComplexResourceType::Diamond);
-    let mut rich = rig();
-    rich.explorer.wallet.coins = 100_000;
-    rich.explorer.complete_task(ComplexResourceType::Diamond);
-    assert_eq!(poor.explorer.wallet.coins, 60);
-    assert_eq!(rich.explorer.wallet.coins, 100_060);
-}
-
-#[test]
-fn a_harder_task_pays_more() {
-    assert!(task_effort(ComplexResourceType::AIPartner) > task_effort(ComplexResourceType::Water));
-}
 
 #[test]
 fn can_afford_compares_the_balance_with_the_price_in_force() {
@@ -419,4 +394,14 @@ fn a_poor_eco_waits_instead_of_acting() {
     assert_eq!(r.explorer.wallet.coins, 0);
     assert!(r.explorer.waiting_for_income);
     assert!(r._planet_rx.try_recv().is_err()); // the planet was never asked
+}
+
+#[test]
+fn completing_a_task_pays_nothing_and_frees_eco_for_the_next_one() {
+    let mut r = rig();
+    r.explorer.wallet.coins = 101;
+    r.explorer.task = Some(ComplexResourceType::Water);
+    r.explorer.complete_task(ComplexResourceType::Water);
+    assert_eq!(r.explorer.wallet.coins, 101); // no reward
+    assert!(r.explorer.task.is_none());
 }

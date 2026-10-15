@@ -23,12 +23,13 @@ use common_game::utils::ID;
 use super::bag::Bag;
 use super::logging;
 use super::planner::{Action, Planner};
-use super::recipes::{ALL_COMPLEX_RESOURCES,task_pool, task_effort};
+use super::recipes::ALL_COMPLEX_RESOURCES;
 use super::regime::{ForecastMode, RegimeEstimator};
 use super::time::EconomyClock;
 use super::wallet::Wallet;
 use super::world::WorldModel;
 use super::comms::{Comms,Pending};
+use super::recipes::task_pool;
 
 /// Eco's bag report: resource type and how many.
 pub type BagContent = Vec<(ResourceType, usize)>;
@@ -724,20 +725,21 @@ impl Explorer {
                 });
                 self.comms.start_travel(dst, Instant::now());
             }
-            Action::Mine(resource) => {
-                self.wallet.charge(costs.mine);
-                if let Err(e) = self.request_generate_resource(resource) {
+            Action::Mine(resource) => match self.request_generate_resource(resource) {
+                Ok(()) => self.wallet.charge(costs.mine),
+                Err(e) => {
                     logging::mine_failed(self.id, resource, &e);
                     self.comms.cool_down(Instant::now());
                 }
-            }
-            Action::Combine(target) => {
-                self.wallet.charge(costs.combine);
-                if let Err(e) = self.request_combine_resource(target) {
+            },
+            Action::Combine(target) => match self.request_combine_resource(target) {
+                Ok(()) => self.wallet.charge(costs.combine),
+                Err(e) => {
                     logging::combine_failed(self.id, target, &e);
                     self.comms.cool_down(Instant::now());
                 }
-            }
+            },
+
             Action::RequestNeighbors => {
                 if self.world.neighbors.contains_key(&self.current_planet_id) {
                     log::info!("Explorer {}: idle on planet {}: task {:?}, exits {:?}, suppliers {:?}, combiners {:?}", self.id, self.current_planet_id, self.task, self.world.neighbors.get(&self.current_planet_id), self.world.resources, self.world.combos,);
@@ -761,14 +763,9 @@ impl Explorer {
     }
 
     pub(super) fn complete_task(&mut self, target: ComplexResourceType) {
-        /// Coins paid per unit of work (one mined basic or one combine) when a task is done.
-        const BONUS_PER_STEP: u32 = 20;
-        let bonus = BONUS_PER_STEP * task_effort(target);
-        self.wallet.credit(bonus);
-        logging::task_completed(self.id, target, bonus, self.wallet.coins);
+        logging::task_completed(self.id, target, self.wallet.coins);
         self.task = None;
     }
-
 
     /// Pays for one accepted move at the price of the regime in force now.
     fn charge_move(&mut self) {
