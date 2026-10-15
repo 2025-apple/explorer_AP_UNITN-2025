@@ -14,7 +14,14 @@ fn regimes_cycle_neutral_flourish_recession() {
     assert_eq!(EconomyRegime::Recession.next(), EconomyRegime::Neutral);
 }
 
-
+#[test]
+fn mining_and_combining_are_cheapest_in_flourish_and_dearest_in_recession() {
+    let n = EconomyRegime::Neutral.costs();
+    let f = EconomyRegime::Flourish.costs();
+    let r = EconomyRegime::Recession.costs();
+    assert!(f.mine < n.mine && n.mine < r.mine);
+    assert!(f.combine < n.combine && n.combine < r.combine);
+}
 
 #[test]
 fn price_tables_match_design() {
@@ -23,13 +30,3 @@ fn price_tables_match_design() {
     assert_eq!(row(EconomyRegime::Recession), (9, 7, 5, 6, 16));
 }
 
-#[test]
-fn acting_every_cycle_is_affordable_only_when_mining_in_flourish() {
-    let day = u32::from(CYCLES_PER_DAY);
-    let n = EconomyRegime::Neutral.costs();
-    let f = EconomyRegime::Flourish.costs();
-    let r = EconomyRegime::Recession.costs();
-    assert!(n.mine * day > n.daily_income);   // 20 > 12
-    assert!(f.mine * day < f.daily_income);   // 5 < 20
-    assert!(r.mine * day > r.daily_income);   // 25 > 16
-}
