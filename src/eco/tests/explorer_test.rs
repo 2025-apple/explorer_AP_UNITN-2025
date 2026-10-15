@@ -12,6 +12,7 @@ use crate::eco::time::CYCLES_PER_DAY;
 use common_game::components::resource::BasicResourceType as B;
 use std::collections::HashSet;
 
+
 struct Rig {
     explorer: Explorer,
     from_explorer: Receiver<ExplorerToOrchestrator<BagContent>>,
@@ -404,4 +405,33 @@ fn completing_a_task_pays_nothing_and_frees_eco_for_the_next_one() {
     r.explorer.complete_task(ComplexResourceType::Water);
     assert_eq!(r.explorer.wallet.coins, 101); // no reward
     assert!(r.explorer.task.is_none());
+}
+
+#[test]
+fn status_copies_the_current_state() {
+    let mut r = rig();
+    r.explorer.task = Some(ComplexResourceType::Water);
+    r.explorer.wallet.charge(4);
+    r.explorer.wallet.credit(12);
+    let s = r.explorer.status();
+    assert_eq!(s.coins, STARTING_COINS + 12 - 4);
+    assert_eq!(s.earned, 12);
+    assert_eq!(s.spent, 4);
+    assert_eq!(s.task, Some(ComplexResourceType::Water));
+    assert_eq!(s.day, 1);
+    assert_eq!(s.regime, EconomyRegime::Neutral);
+    assert!(s.bag.is_empty());
+    assert!(!s.waiting_for_income);
+}
+
+#[test]
+fn status_shows_that_a_poor_eco_is_waiting() {
+    let mut r = rig();
+    r.explorer.task = Some(ComplexResourceType::Diamond);
+    r.explorer.world.record_resources(100, HashSet::from([B::Carbon]));
+    r.explorer.world.record_combos(100, HashSet::from([ComplexResourceType::Diamond]));
+    r.explorer.world.record_neighbors(100, vec![]);
+    r.explorer.wallet.coins = 0;
+    r.explorer.ai_step();
+    assert!(r.explorer.status().waiting_for_income);
 }

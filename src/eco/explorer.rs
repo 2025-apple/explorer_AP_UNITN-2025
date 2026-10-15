@@ -23,13 +23,13 @@ use common_game::utils::ID;
 use super::bag::Bag;
 use super::logging;
 use super::planner::{Action, Planner};
-use super::recipes::ALL_COMPLEX_RESOURCES;
 use super::regime::{ForecastMode, RegimeEstimator};
 use super::time::EconomyClock;
 use super::wallet::Wallet;
 use super::world::WorldModel;
 use super::comms::{Comms,Pending};
 use super::recipes::task_pool;
+use super::status::EcoStatus;
 
 /// Eco's bag report: resource type and how many.
 pub type BagContent = Vec<(ResourceType, usize)>;
@@ -673,6 +673,23 @@ impl Explorer {
             &forecast,
         );
 
+        /// Copies Eco's current state into a plain struct for a status panel.
+        /// Read-only: it changes nothing.
+        #[must_use]
+        pub fn status(&self) -> EcoStatus {
+            EcoStatus {
+                planet: self.current_planet_id,
+                day: self.clock.day,
+                regime: self.clock.regime,
+                coins: self.wallet.coins,
+                earned: self.wallet.earned,
+                spent: self.wallet.spent,
+                task: self.task,
+                bag: self.bag.contents(),
+                waiting_for_income: self.waiting_for_income,
+            }
+        }
+
         if !self.can_afford(&action) {
             if !self.waiting_for_income {
                 logging::waiting_for_income(self.id, &action, self.wallet.coins);
@@ -702,8 +719,10 @@ impl Explorer {
     }
 
     pub(super) fn execute(&mut self, action: Action) {
-        logging::action_taken(self.id, self.current_planet_id, &action, self.wallet.coins);
-        log::info!(
+        if !matches!(action, Action::RequestNeighbors) {
+            logging::action_taken(self.id, self.current_planet_id, &action, self.wallet.coins);
+        }
+        log::debug!(
             "Explorer {}: idle on planet {}: task {:?}, bag {:?}, neighbors {:?}",
             self.id,
             self.current_planet_id,
@@ -742,7 +761,7 @@ impl Explorer {
 
             Action::RequestNeighbors => {
                 if self.world.neighbors.contains_key(&self.current_planet_id) {
-                    log::info!("Explorer {}: idle on planet {}: task {:?}, exits {:?}, suppliers {:?}, combiners {:?}", self.id, self.current_planet_id, self.task, self.world.neighbors.get(&self.current_planet_id), self.world.resources, self.world.combos,);
+                    log::debug!("Explorer {}: idle on planet {}: task {:?}, exits {:?}, suppliers {:?}, combiners {:?}", self.id, self.current_planet_id, self.task, self.world.neighbors.get(&self.current_planet_id), self.world.resources, self.world.combos,);
                 } else {
                     let _ = self.to_orchestrator.send(ExplorerToOrchestrator::NeighborsRequest {
                         explorer_id: self.id,

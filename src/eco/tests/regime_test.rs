@@ -1,5 +1,4 @@
 use crate::eco::regime::EconomyRegime;
-use crate::eco::time::CYCLES_PER_DAY;
 
 fn row(r: EconomyRegime) -> (u32, u32, u32, u32, u32) {
     let c = r.costs();
