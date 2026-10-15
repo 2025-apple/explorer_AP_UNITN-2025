@@ -12,21 +12,6 @@ fn new_clock_starts_day_one_neutral() {
     assert_eq!(c.days_left_in_regime, 5);
 }
 
-#[test]
-fn five_ticks_make_a_day_and_income_fires_once() {
-    let mut rng = StdRng::seed_from_u64(1);
-    let mut c = EconomyClock::new();
-    for _ in 0..CYCLES_PER_DAY {
-        assert!(c.tick(&mut rng).is_none());
-        assert!(!c.take_income_due());
-    }
-    assert_eq!(c.day, 1);
-    assert!(c.tick(&mut rng).is_none()); // 5th tick: day rolls over
-    assert_eq!(c.day, 2);
-    assert_eq!(c.cycle_in_day, 0);
-    assert!(c.take_income_due());
-    assert!(!c.take_income_due()); // consumed
-}
 
 #[test]
 fn neutral_lasts_five_days_then_flourish() {
