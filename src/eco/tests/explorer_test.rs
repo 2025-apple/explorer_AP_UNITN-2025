@@ -434,6 +434,10 @@ fn status_shows_that_a_poor_eco_is_waiting() {
     r.explorer.wallet.coins = 0;
     r.explorer.ai_step();
     assert!(r.explorer.status().waiting_for_income);
+    assert_eq!(
+        r.explorer.status().decision,
+        Some(("Mine(Carbon)".to_string(), 4))
+    );
 }
 
 #[test]

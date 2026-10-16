@@ -133,6 +133,7 @@ pub struct Explorer {
     pub(super) comms: Comms,
     pub(super) waiting_for_income: bool,
     pub(super) status_sink: Option<StatusSink>,
+    pub(super) decision: Option<(Action, u32)>,
 }
 
 /// Coins Eco starts day 1 with (design choice, see the economy notes).
@@ -173,6 +174,7 @@ impl Explorer {
             rng: StdRng::from_rng(&mut rand::rng()),
             waiting_for_income: false,
             status_sink: None,
+            decision: None,
 
         }
     }
@@ -264,6 +266,7 @@ impl Explorer {
                 self.comms.reset();
                 self.ai_active = true;
                 self.waiting_for_income=false;
+                self.decision = None;
                 let _ = self.to_orchestrator.send(
                     ExplorerToOrchestrator::ResetExplorerAIResult { explorer_id: self.id },
                 );
@@ -684,6 +687,8 @@ impl Explorer {
             &forecast,
         );
 
+        self.decision = Some((action.clone(), self.price_of(&action)));
+
         if !self.can_afford(&action) {
             if !self.waiting_for_income {
                 logging::waiting_for_income(self.id, &action, self.wallet.coins);
@@ -709,6 +714,10 @@ impl Explorer {
             task: self.task,
             bag: self.bag.contents(),
             waiting_for_income: self.waiting_for_income,
+            decision: self
+                .decision
+                .as_ref()
+                .map(|(action, price)| (format!("{action:?}"), *price)),
         }
     }
 

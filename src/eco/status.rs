@@ -20,6 +20,8 @@ pub struct EcoStatus {
     pub bag: BagContent,
     /// True while Eco holds back an action it cannot pay for yet.
     pub waiting_for_income: bool,
+    /// The action the planner last chose and what it costs now, as text and coins.
+    pub decision: Option<(String, u32)>,
 }
 
 use std::sync::{Arc, Mutex};
