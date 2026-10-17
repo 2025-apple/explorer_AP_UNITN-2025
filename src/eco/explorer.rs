@@ -717,7 +717,18 @@ impl Explorer {
             decision: self
                 .decision
                 .as_ref()
-                .map(|(action, price)| (format!("{action:?}"), *price)),
+                .map(|(action, price)| (self.describe(action), *price)),
+        }
+    }
+
+    /// Plain-language name of an action for the status panel.
+    fn describe(&self, action: &Action) -> String {
+        match action {
+            Action::RequestNeighbors if self.world.neighbors.contains_key(&self.current_planet_id) => {
+                "Idle: nothing left to explore or do here".to_string()
+            }
+            Action::RequestNeighbors => "Asking for this planet's exits".to_string(),
+            other => format!("{other:?}"),
         }
     }
 
