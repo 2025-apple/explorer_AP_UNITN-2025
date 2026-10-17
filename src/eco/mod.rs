@@ -17,11 +17,6 @@
 //!   logging   - every log line Eco emits, in one place
 //!   explorer  - the `Explorer` struct itself + protocol wiring
 //!
-//! VERIFY against the real `common_game` crate before compiling:
-//!   - `BasicResourceType` / `ComplexResourceType` are `Copy + Eq + Hash`.
-//!   - `BasicResource::get_type()` / `ComplexResource::get_type()` exist.
-//!   - The six recipes in `recipes::recipe_of` match your current
-//!     `build_combine_request` exactly.
 
 mod bag;
 mod explorer;

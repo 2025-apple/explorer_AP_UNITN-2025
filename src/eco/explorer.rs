@@ -33,6 +33,9 @@ use super::world::WorldModel;
 /// Eco's bag report: resource type and how many.
 pub type BagContent = Vec<(ResourceType, usize)>;
 
+/// Creates Eco in blind mode (the real AI: it estimates how long a regime lasts from what it has seen).
+/// The channels are the ones the orchestrator and the starting planet give every explorer.
+/// Call [Explorer::run] on the result, normally inside a thread.
 #[must_use]
 pub fn create_explorer(
     explorer_id: ID,
@@ -55,6 +58,8 @@ pub fn create_explorer(
     )
 }
 
+/// Like [create_explorer], but the planner is told exactly how long the regime lasts.
+/// For tests and baselines only.
 #[must_use]
 pub fn create_explorer_oracle(
     explorer_id: ID,
@@ -135,6 +140,8 @@ fn reply_kind(request: ExplorerToPlanetKind) -> PlanetToExplorerKind {
     }
 }
 
+/// Eco: an autonomous explorer with its own coin economy.
+/// Built with [create_explorer] and driven by [Explorer::run].
 pub struct Explorer {
     id: ID,
 
@@ -191,7 +198,7 @@ impl Explorer {
             ai_active: false,
             should_stop: false,
             clock: EconomyClock::new(),
-            wallet: Wallet::new(STARTING_COINS), // spec: Eco starts day 1 with 18 coins
+            wallet: Wallet::new(STARTING_COINS), // design choice: see STARTING_COINS
             estimator: RegimeEstimator::new(),
             world,
             comms: Comms::new(),
@@ -211,8 +218,8 @@ impl Explorer {
         self
     }
 
-    /// Gives Eco a shared cell to publish its status into (for a status
-    /// panel). Without it Eco publishes nothing.
+    /// Gives Eco a shared cell to publish its status into (for a status panel).
+    /// Without it nothing is published.
     #[must_use]
     pub fn with_status_sink(mut self, sink: StatusSink) -> Self {
         self.status_sink = Some(sink);
@@ -221,12 +228,10 @@ impl Explorer {
 
     /// Main loop. Call this from the thread the orchestrator's `main.rs` spawns.
     pub fn run(mut self) {
-        let _ = self
-            .to_orchestrator
-            .send(ExplorerToOrchestrator::CurrentPlanetResult {
-                explorer_id: self.id,
-                planet_id: self.current_planet_id,
-            });
+        self.send_to_orchestrator(ExplorerToOrchestrator::CurrentPlanetResult {
+            explorer_id: self.id,
+            planet_id: self.current_planet_id,
+        });
 
         while !self.should_stop {
             loop {
@@ -260,34 +265,29 @@ impl Explorer {
     // ==================== Orchestrator -> Explorer ====================
 
     pub(super) fn handle_orchestrator_message(&mut self, msg: OrchestratorToExplorer) {
+        logging::received_from_orchestrator(self.id, &msg);
         match msg {
             OrchestratorToExplorer::KillExplorer => {
                 logging::kill_received(self.id);
                 self.should_stop = true;
-                let _ = self
-                    .to_orchestrator
-                    .send(ExplorerToOrchestrator::KillExplorerResult {
-                        explorer_id: self.id,
-                    });
+                self.send_to_orchestrator(ExplorerToOrchestrator::KillExplorerResult {
+                    explorer_id: self.id,
+                });
             }
 
             OrchestratorToExplorer::StartExplorerAI => {
                 self.ai_active = true;
-                let _ = self
-                    .to_orchestrator
-                    .send(ExplorerToOrchestrator::StartExplorerAIResult {
-                        explorer_id: self.id,
-                    });
+                self.send_to_orchestrator(ExplorerToOrchestrator::StartExplorerAIResult {
+                    explorer_id: self.id,
+                });
             }
 
             OrchestratorToExplorer::StopExplorerAI => {
                 self.ai_active = false;
                 self.comms.reset();
-                let _ = self
-                    .to_orchestrator
-                    .send(ExplorerToOrchestrator::StopExplorerAIResult {
-                        explorer_id: self.id,
-                    });
+                self.send_to_orchestrator(ExplorerToOrchestrator::StopExplorerAIResult {
+                    explorer_id: self.id,
+                });
             }
 
             OrchestratorToExplorer::ResetExplorerAI => {
@@ -300,11 +300,9 @@ impl Explorer {
                 self.ai_active = true;
                 self.waiting_for_income = false;
                 self.decision = None;
-                let _ = self
-                    .to_orchestrator
-                    .send(ExplorerToOrchestrator::ResetExplorerAIResult {
-                        explorer_id: self.id,
-                    });
+                self.send_to_orchestrator(ExplorerToOrchestrator::ResetExplorerAIResult {
+                    explorer_id: self.id,
+                });
             }
 
             OrchestratorToExplorer::MoveToPlanet {
@@ -341,21 +339,17 @@ impl Explorer {
                     }
                 }
 
-                let _ = self
-                    .to_orchestrator
-                    .send(ExplorerToOrchestrator::MovedToPlanetResult {
-                        explorer_id: self.id,
-                        planet_id: self.current_planet_id,
-                    });
+                self.send_to_orchestrator(ExplorerToOrchestrator::MovedToPlanetResult {
+                    explorer_id: self.id,
+                    planet_id: self.current_planet_id,
+                });
             }
 
             OrchestratorToExplorer::CurrentPlanetRequest => {
-                let _ = self
-                    .to_orchestrator
-                    .send(ExplorerToOrchestrator::CurrentPlanetResult {
-                        explorer_id: self.id,
-                        planet_id: self.current_planet_id,
-                    });
+                self.send_to_orchestrator(ExplorerToOrchestrator::CurrentPlanetResult {
+                    explorer_id: self.id,
+                    planet_id: self.current_planet_id,
+                });
             }
 
             OrchestratorToExplorer::SupportedResourceRequest => {
@@ -409,16 +403,10 @@ impl Explorer {
             }
 
             OrchestratorToExplorer::BagContentRequest => {
-                let _ = self
-                    .to_orchestrator
-                    .send(ExplorerToOrchestrator::BagContentResponse {
-                        explorer_id: self.id,
-                        bag_content: self.bag.contents(),
-                    });
-            }
-
-            _ => {
-                logging::unknown_message(self.id);
+                self.send_to_orchestrator(ExplorerToOrchestrator::BagContentResponse {
+                    explorer_id: self.id,
+                    bag_content: self.bag.contents(),
+                });
             }
         }
     }
@@ -443,6 +431,7 @@ impl Explorer {
         while rx.try_recv().is_ok() {}
 
         let wanted = reply_kind(ExplorerToPlanetKind::from(&msg));
+        logging::sent_to_planet(self.id, self.current_planet_id, &msg);
         if tx.send(msg).is_err() {
             logging::planet_channel_gone(self.id);
             return Err(PlanetError::Gone);
@@ -451,7 +440,11 @@ impl Explorer {
         let deadline = Instant::now() + PLANET_REPLY_TIMEOUT;
         loop {
             let left = deadline.saturating_duration_since(Instant::now());
-            match rx.recv_timeout(left) {
+            let received = rx.recv_timeout(left);
+            if let Ok(reply) = &received {
+                logging::received_from_planet(self.id, self.current_planet_id, reply);
+            }
+            match received {
                 Ok(PlanetToExplorer::Stopped) => {
                     logging::planet_stopped(self.id);
                     return Err(PlanetError::Stopped);
@@ -551,19 +544,6 @@ impl Explorer {
                 Err(reason)
             }
             _ => Err("unexpected reply from planet".to_string()),
-        }
-    }
-
-    /// "Energy Cell Availability" — explorer-initiated only, no
-    /// orchestrator involvement in the real protocol.
-    pub fn query_available_energy_cells(&self) -> Option<ID> {
-        match self.request_planet(ExplorerToPlanet::AvailableEnergyCellRequest {
-            explorer_id: self.id,
-        }) {
-            Ok(PlanetToExplorer::AvailableEnergyCellResponse { available_cells }) => {
-                Some(available_cells)
-            }
-            _ => None,
         }
     }
 
@@ -808,6 +788,13 @@ impl Explorer {
         }
     }
 
+    /// Sends `msg` to the orchestrator and logs it (spec §4.2). A closed
+    /// channel is ignored: the orchestrator is gone and `run` will notice.
+    fn send_to_orchestrator(&self, msg: ExplorerToOrchestrator<BagContent>) {
+        logging::sent_to_orchestrator(self.id, &msg);
+        let _ = self.to_orchestrator.send(msg);
+    }
+
     /// Plain-language name of an action for the status panel.
     fn describe(&self, action: &Action) -> String {
         match action {
@@ -866,13 +853,11 @@ impl Explorer {
             }
             Action::Move(dst) | Action::ExploreTowards(dst) => {
                 // Asking to travel is free; the move is paid when it is accepted.
-                let _ = self
-                    .to_orchestrator
-                    .send(ExplorerToOrchestrator::TravelToPlanetRequest {
-                        explorer_id: self.id,
-                        current_planet_id: self.current_planet_id,
-                        dst_planet_id: dst,
-                    });
+                self.send_to_orchestrator(ExplorerToOrchestrator::TravelToPlanetRequest {
+                    explorer_id: self.id,
+                    current_planet_id: self.current_planet_id,
+                    dst_planet_id: dst,
+                });
                 self.comms.start_travel(dst, Instant::now());
             }
             Action::Mine(resource) => match self.request_generate_resource(resource) {
@@ -902,12 +887,10 @@ impl Explorer {
                         self.world.combos,
                     );
                 } else {
-                    let _ = self
-                        .to_orchestrator
-                        .send(ExplorerToOrchestrator::NeighborsRequest {
-                            explorer_id: self.id,
-                            current_planet_id: self.current_planet_id,
-                        });
+                    self.send_to_orchestrator(ExplorerToOrchestrator::NeighborsRequest {
+                        explorer_id: self.id,
+                        current_planet_id: self.current_planet_id,
+                    });
                     self.comms
                         .start_neighbors(self.current_planet_id, Instant::now());
                 }

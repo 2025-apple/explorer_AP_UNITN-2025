@@ -7,6 +7,61 @@ use common_game::utils::ID;
 use super::planner::Action;
 use super::regime::EconomyRegime;
 
+use common_game::logging::{ActorType, Channel, EventType, LogEvent, Participant, Payload};
+use common_game::protocols::orchestrator_explorer::{
+    ExplorerToOrchestrator, OrchestratorToExplorer,
+};
+use common_game::protocols::planet_explorer::{ExplorerToPlanet, PlanetToExplorer};
+
+use super::explorer::BagContent;
+
+/// The orchestrator has no id of its own; the common crate suggests 0.
+const ORCHESTRATOR_ID: ID = 0;
+
+/// Emits one message event in the format the working group standardised
+/// (spec §4.2): who sent it, who received it, what kind, and the message text.
+fn log_message(from: Participant, to: Participant, kind: EventType, msg: &dyn std::fmt::Debug) {
+    let mut payload = Payload::new();
+    payload.insert("message".to_string(), format!("{msg:?}"));
+    LogEvent::new(Some(from), Some(to), kind, Channel::Trace, payload).emit();
+}
+
+pub(crate) fn received_from_orchestrator(id: ID, msg: &OrchestratorToExplorer) {
+    log_message(
+        Participant::new(ActorType::Orchestrator, ORCHESTRATOR_ID),
+        Participant::new(ActorType::Explorer, id),
+        EventType::MessageOrchestratorToExplorer,
+        msg,
+    );
+}
+
+pub(crate) fn sent_to_orchestrator(id: ID, msg: &ExplorerToOrchestrator<BagContent>) {
+    log_message(
+        Participant::new(ActorType::Explorer, id),
+        Participant::new(ActorType::Orchestrator, ORCHESTRATOR_ID),
+        EventType::MessageExplorerToOrchestrator,
+        msg,
+    );
+}
+
+pub(crate) fn sent_to_planet(id: ID, planet_id: ID, msg: &ExplorerToPlanet) {
+    log_message(
+        Participant::new(ActorType::Explorer, id),
+        Participant::new(ActorType::Planet, planet_id),
+        EventType::MessageExplorerToPlanet,
+        msg,
+    );
+}
+
+pub(crate) fn received_from_planet(id: ID, planet_id: ID, msg: &PlanetToExplorer) {
+    log_message(
+        Participant::new(ActorType::Planet, planet_id),
+        Participant::new(ActorType::Explorer, id),
+        EventType::MessagePlanetToExplorer,
+        msg,
+    );
+}
+
 // ---- Protocol / lifecycle ----
 
 pub(crate) fn orchestrator_channel_closed(id: ID) {
@@ -27,10 +82,6 @@ pub(crate) fn moved_to_planet(id: ID, planet_id: ID) {
 
 pub(crate) fn move_rejected(id: ID, planet_id: ID) {
     log::warn!("Explorer {id}: move to planet {planet_id} was rejected");
-}
-
-pub(crate) fn unknown_message(id: ID) {
-    log::error!("Explorer {id}: error unknown received message");
 }
 
 pub(crate) fn no_planet_link(id: ID) {

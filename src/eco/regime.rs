@@ -1,7 +1,4 @@
-//! Price tables and the fixed Neutral -> Flourish -> Recession -> ...
-//! transition order — *how the economy switches*. Day-counting itself
-//! lives in `time.rs`; this module only knows prices and what regime
-//! comes next.
+/// Price table for this regime. These numbers are a design choice of Eco's, not given by the course spec.
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum EconomyRegime {

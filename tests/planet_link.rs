@@ -1,4 +1,4 @@
-use common_game::components::resource::{BasicResourceType, GenericResource};
+use common_game::components::resource::BasicResourceType;
 use common_game::protocols::orchestrator_explorer::{
     ExplorerToOrchestrator, OrchestratorToExplorer,
 };

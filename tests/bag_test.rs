@@ -7,6 +7,7 @@ use explorer_eco::{BagContent, create_explorer};
 use std::thread;
 use std::time::Duration;
 
+
 #[test]
 fn bag_content_request_returns_empty_bag_for_new_explorer() {
     let (tx_orch, rx_orch) = unbounded::<OrchestratorToExplorer>();
