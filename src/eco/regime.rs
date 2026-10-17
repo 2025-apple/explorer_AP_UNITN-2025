@@ -77,7 +77,7 @@ impl RegimeEstimator {
     }
 
     pub fn observe(&mut self, regime: EconomyRegime, days_lasted: u32) {
-        let x = days_lasted as f64;
+        let x = f64::from(days_lasted);
         match regime {
             EconomyRegime::Flourish => {
                 self.ema_flourish_days =
@@ -101,7 +101,7 @@ impl RegimeEstimator {
             EconomyRegime::Recession => self.ema_recession_days,
             EconomyRegime::Neutral => 5.0,
         };
-        (expected_total - days_spent_in_regime as f64).max(0.0)
+        (expected_total - f64::from(days_spent_in_regime)).max(0.0)
     }
 }
 
@@ -132,7 +132,7 @@ impl ForecastMode<'_> {
             } => estimator.estimate_days_left(regime, *days_spent_in_regime),
             ForecastMode::Oracle {
                 days_left_in_regime,
-            } => *days_left_in_regime as f64,
+            } => f64::from(*days_left_in_regime),
         }
     }
 }

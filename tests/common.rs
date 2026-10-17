@@ -120,7 +120,7 @@ impl PlanetAI for TestAI {
 // ---------------------------------------------------------------------------
 pub struct TestPlanet {
     pub id: ID,
-    /// The sender Eco must use to talk to this planet (what MoveToPlanet carries).
+    /// The sender Eco must use to talk to this planet (what `MoveToPlanet` carries).
     pub to_planet: Sender<ExplorerToPlanet>,
     to_planet_orch: Sender<OrchestratorToPlanet>,
     from_planet_orch: Receiver<PlanetToOrchestrator>,
@@ -130,6 +130,7 @@ pub struct TestPlanet {
 impl TestPlanet {
     /// Spawns a real `Planet`. It starts STOPPED (as the real runtime does):
     /// call `start()` to make it answer explorers.
+    #[must_use]
     pub fn spawn(
         id: ID,
         planet_type: PlanetType,
@@ -203,6 +204,7 @@ impl TestPlanet {
 
     /// What the orchestrator does to let an explorer onto this planet
     /// (Incoming request), with a fresh reply channel; returns its receiving end.
+    #[must_use]
     pub fn admit(&self, explorer_id: ID) -> Receiver<PlanetToExplorer> {
         let (tx, rx) = unbounded::<PlanetToExplorer>();
         self.admit_via(explorer_id, tx);
@@ -261,11 +263,13 @@ pub struct RunningExplorer {
 
 /// Admits explorer `explorer_id` on `planet` (as the orchestrator would) and
 /// starts Eco on its own thread. Eco is in manual mode until `send(StartExplorerAI)`.
+#[must_use]
 pub fn spawn_explorer(explorer_id: ID, planet: &TestPlanet) -> RunningExplorer {
     spawn_with(explorer_id, planet, None)
 }
 
 /// Same, but Eco starts with the given task instead of a random one.
+#[must_use]
 pub fn spawn_explorer_with_task(
     explorer_id: ID,
     planet: &TestPlanet,
@@ -312,13 +316,14 @@ impl RunningExplorer {
     }
 
     /// The next message Eco sends to the orchestrator, if one arrives in time.
+    #[must_use]
     pub fn next_message(&self, timeout: Duration) -> Option<ExplorerToOrchestrator<BagContent>> {
         self.from_explorer.recv_timeout(timeout).ok()
     }
 
     /// Reads messages Eco sends to the orchestrator until `pick` returns
     /// `Some`, or `timeout` passes. Non-matching messages are skipped
-    /// (e.g. the CurrentPlanetResult Eco sends when it starts).
+    /// (e.g. the `CurrentPlanetResult` Eco sends when it starts).
     pub fn wait_for<T>(
         &self,
         timeout: Duration,
@@ -360,6 +365,7 @@ pub struct Galaxy {
 }
 
 impl Galaxy {
+    #[must_use]
     pub fn new(outgoing_first: bool) -> Self {
         Galaxy {
             planets: HashMap::new(),
@@ -378,6 +384,7 @@ impl Galaxy {
         self.edges.entry(b).or_default().push(a);
     }
 
+    #[must_use]
     pub fn planet(&self, id: ID) -> &TestPlanet {
         &self.planets[&id]
     }
@@ -392,7 +399,7 @@ impl Galaxy {
         self.edges.get(&id).cloned().unwrap_or_default()
     }
 
-    /// The orchestrator's move choreography for one accepted TravelToPlanetRequest.
+    /// The orchestrator's move choreography for one accepted `TravelToPlanetRequest`.
     fn move_explorer(&self, eco: &RunningExplorer, from: ID, to: ID) {
         let (src, dst) = (&self.planets[&from], &self.planets[&to]);
         if self.outgoing_first {
@@ -410,6 +417,7 @@ impl Galaxy {
 
     /// Plays the orchestrator for `eco` (answering neighbour and travel
     /// requests) while polling its bag, until it holds `want` or `timeout` passes.
+    #[must_use]
     pub fn serve_until_bag_contains(
         &self,
         eco: &RunningExplorer,
@@ -441,13 +449,12 @@ impl Galaxy {
                 } => {
                     self.move_explorer(eco, current_planet_id, dst_planet_id);
                 }
-                ExplorerToOrchestrator::BagContentResponse { bag_content, .. } => {
+                ExplorerToOrchestrator::BagContentResponse { bag_content, .. }
                     if bag_content
                         .iter()
-                        .any(|(kind, count)| kind == &want && *count > 0)
-                    {
-                        return true;
-                    }
+                        .any(|(kind, count)| kind == &want && *count > 0) =>
+                {
+                    return true;
                 }
                 _ => {}
             }

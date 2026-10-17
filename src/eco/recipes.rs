@@ -12,8 +12,8 @@ pub enum Ingredient {
 }
 
 pub fn recipe_of(target: ComplexResourceType) -> (Ingredient, Ingredient) {
-    use BasicResourceType::*;
-    use ComplexResourceType::*;
+    use BasicResourceType::{Carbon, Hydrogen, Oxygen, Silicon};
+    use ComplexResourceType::{AIPartner, Diamond, Dolphin, Life, Robot, Water};
     match target {
         Water => (Ingredient::Basic(Hydrogen), Ingredient::Basic(Oxygen)),
         Diamond => (Ingredient::Basic(Carbon), Ingredient::Basic(Carbon)),
@@ -52,11 +52,11 @@ fn allocate(
     complex: &mut HashMap<ComplexResourceType, u32>,
     out: &mut Remaining,
 ) {
-    if let Some(n) = complex.get_mut(&target) {
-        if *n > 0 {
-            *n -= 1;
-            return;
-        }
+    if let Some(n) = complex.get_mut(&target)
+        && *n > 0
+    {
+        *n -= 1;
+        return;
     }
     let (a, b) = recipe_of(target);
     for ingredient in [a, b] {

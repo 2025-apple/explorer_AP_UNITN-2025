@@ -16,7 +16,7 @@ fn pending_request_blocks_until_the_timeout() {
     let mut c = Comms::new();
     c.start_neighbors(7, t0);
     assert!(!c.may_act(t0));
-    assert!(!c.may_act(t0 + PENDING_TIMEOUT - MS));
+    assert!(!c.may_act((t0 + PENDING_TIMEOUT).checked_sub(MS).unwrap()));
 }
 
 #[test]
@@ -27,7 +27,7 @@ fn an_expired_request_is_dropped_and_followed_by_a_cooldown() {
     let expiry = t0 + PENDING_TIMEOUT;
     assert!(!c.may_act(expiry)); // expired -> cooldown starts
     assert_eq!(c.pending, Pending::Idle);
-    assert!(!c.may_act(expiry + RETRY_COOLDOWN - MS));
+    assert!(!c.may_act((expiry + RETRY_COOLDOWN).checked_sub(MS).unwrap()));
     assert!(c.may_act(expiry + RETRY_COOLDOWN));
 }
 
@@ -60,7 +60,7 @@ fn cool_down_blocks_for_the_cooldown_only() {
     let mut c = Comms::new();
     c.cool_down(t0);
     assert!(!c.may_act(t0));
-    assert!(!c.may_act(t0 + RETRY_COOLDOWN - MS));
+    assert!(!c.may_act((t0 + RETRY_COOLDOWN).checked_sub(MS).unwrap()));
     assert!(c.may_act(t0 + RETRY_COOLDOWN));
 }
 
@@ -71,7 +71,7 @@ fn a_failed_probe_blocks_probing_but_not_acting() {
     assert!(c.may_probe(t0));
     c.probe_failed(t0);
     assert!(!c.may_probe(t0));
-    assert!(!c.may_probe(t0 + RETRY_COOLDOWN - MS));
+    assert!(!c.may_probe((t0 + RETRY_COOLDOWN).checked_sub(MS).unwrap()));
     assert!(c.may_probe(t0 + RETRY_COOLDOWN));
     assert!(c.may_act(t0)); // a failed probe never stops Eco from acting
 }

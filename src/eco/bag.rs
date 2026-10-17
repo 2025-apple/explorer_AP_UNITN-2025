@@ -12,7 +12,7 @@ pub struct Bag {
 }
 
 impl Bag {
-    /// Counted snapshot of the bag, for BagContentResponse.
+    /// Counted snapshot of the bag, for `BagContentResponse`.
     /// Never hands out the real resources; they can't be cloned.
     pub fn contents(&self) -> Vec<(ResourceType, usize)> {
         let mut counts: HashMap<ResourceType, usize> = HashMap::new();

@@ -68,12 +68,12 @@ impl Comms {
             Pending::Idle => None,
             Pending::Neighbors { since, .. } | Pending::Travel { since, .. } => Some(since),
         };
-        if let Some(since) = since {
-            if now.saturating_duration_since(since) >= PENDING_TIMEOUT {
-                self.last_expired = Some(self.pending);
-                self.pending = Pending::Idle;
-                self.retry_at = Some(now + RETRY_COOLDOWN);
-            }
+        if let Some(since) = since
+            && now.saturating_duration_since(since) >= PENDING_TIMEOUT
+        {
+            self.last_expired = Some(self.pending);
+            self.pending = Pending::Idle;
+            self.retry_at = Some(now + RETRY_COOLDOWN);
         }
 
         if self.pending != Pending::Idle {

@@ -107,7 +107,7 @@ impl Planner {
                 .basics_to_mine
                 .iter()
                 .filter_map(|&b| world.nearest_known_source(current_planet, b))
-                .min_by_key(|path| path.len());
+                .min_by_key(std::vec::Vec::len);
             return match nearest {
                 Some(path) => Self::step_along(path, regime, costs, forecast),
                 None => Self::explore_or_request(current_planet, world),
@@ -182,9 +182,10 @@ impl Planner {
             return action; // regime believed to be ending "now" — no time saved
         }
 
-        let cycles_left = (days_left * CYCLES_PER_DAY as f64).max(1.0);
-        let cost_now = action_cost_now as f64;
-        let cost_if_waited = cycles_left * stay_cost_now as f64 + action_cost_after_wait as f64;
+        let cycles_left = (days_left * f64::from(CYCLES_PER_DAY)).max(1.0);
+        let cost_now = f64::from(action_cost_now);
+        let cost_if_waited =
+            cycles_left * f64::from(stay_cost_now) + f64::from(action_cost_after_wait);
 
         if cost_if_waited < cost_now {
             Action::Stay

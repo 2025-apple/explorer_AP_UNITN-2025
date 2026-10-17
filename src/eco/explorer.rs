@@ -35,7 +35,7 @@ pub type BagContent = Vec<(ResourceType, usize)>;
 
 /// Creates Eco in blind mode (the real AI: it estimates how long a regime lasts from what it has seen).
 /// The channels are the ones the orchestrator and the starting planet give every explorer.
-/// Call [Explorer::run] on the result, normally inside a thread.
+/// Call [`Explorer::run`] on the result, normally inside a thread.
 #[must_use]
 pub fn create_explorer(
     explorer_id: ID,
@@ -58,7 +58,7 @@ pub fn create_explorer(
     )
 }
 
-/// Like [create_explorer], but the planner is told exactly how long the regime lasts.
+/// Like [`create_explorer`], but the planner is told exactly how long the regime lasts.
 /// For tests and baselines only.
 #[must_use]
 pub fn create_explorer_oracle(
@@ -141,7 +141,7 @@ fn reply_kind(request: ExplorerToPlanetKind) -> PlanetToExplorerKind {
 }
 
 /// Eco: an autonomous explorer with its own coin economy.
-/// Built with [create_explorer] and driven by [Explorer::run].
+/// Built with [`create_explorer`] and driven by [`Explorer::run`].
 // Four independent on/off flags; grouping them in an enum would add
 // complexity without making the state machine clearer.
 #[allow(clippy::struct_excessive_bools)]
@@ -216,6 +216,7 @@ impl Explorer {
 
     /// Starts Eco on a chosen task instead of a random one, for scripted
     /// scenarios and tests. The orchestrator never needs this.
+    #[must_use]
     pub fn with_task(mut self, target: ComplexResourceType) -> Self {
         self.task = Some(target);
         self
@@ -312,33 +313,30 @@ impl Explorer {
                 sender_to_new_planet,
                 planet_id,
             } => {
-                match sender_to_new_planet {
-                    Some(new_to_planet) => {
-                        logging::moved_to_planet(self.id, planet_id);
-                        let changed_planet = planet_id != self.current_planet_id;
-                        self.planet_link.to_planet = Some(new_to_planet);
-                        if let Some(rx) = &self.planet_link.from_planet {
-                            while rx.try_recv().is_ok() {}
-                        }
-                        self.current_planet_id = planet_id;
-                        self.world.visited.insert(planet_id);
-                        // Accepted move: any travel request is now settled, and
-                        // this is the moment the move is paid for.
-                        self.comms.resolve_travel();
-                        if changed_planet {
-                            self.charge_move();
-                        }
+                if let Some(new_to_planet) = sender_to_new_planet {
+                    logging::moved_to_planet(self.id, planet_id);
+                    let changed_planet = planet_id != self.current_planet_id;
+                    self.planet_link.to_planet = Some(new_to_planet);
+                    if let Some(rx) = &self.planet_link.from_planet {
+                        while rx.try_recv().is_ok() {}
                     }
-                    None => {
-                        logging::move_rejected(self.id, planet_id);
-                        // Only a refusal of the move WE asked for settles our
-                        // pending request; it is free, but cool down so the same
-                        // refused move is not retried at once.
-                        if self.comms.travel_target() == Some(planet_id) {
-                            self.world.invalidate_neighbors(self.current_planet_id);
-                            self.comms.resolve_travel();
-                            self.comms.cool_down(Instant::now());
-                        }
+                    self.current_planet_id = planet_id;
+                    self.world.visited.insert(planet_id);
+                    // Accepted move: any travel request is now settled, and
+                    // this is the moment the move is paid for.
+                    self.comms.resolve_travel();
+                    if changed_planet {
+                        self.charge_move();
+                    }
+                } else {
+                    logging::move_rejected(self.id, planet_id);
+                    // Only a refusal of the move WE asked for settles our
+                    // pending request; it is free, but cool down so the same
+                    // refused move is not retried at once.
+                    if self.comms.travel_target() == Some(planet_id) {
+                        self.world.invalidate_neighbors(self.current_planet_id);
+                        self.comms.resolve_travel();
+                        self.comms.cool_down(Instant::now());
                     }
                 }
 
@@ -417,7 +415,7 @@ impl Explorer {
     // ==================== Explorer -> Planet ====================
 
     /// The ONE place Eco talks to a planet. Sends `msg`, then waits up to
-    /// PLANET_REPLY_TIMEOUT for the reply that answers it.
+    /// `PLANET_REPLY_TIMEOUT` for the reply that answers it.
     fn request_planet(&self, msg: ExplorerToPlanet) -> Result<PlanetToExplorer, PlanetError> {
         let (Some(tx), Some(rx)) = (&self.planet_link.to_planet, &self.planet_link.from_planet)
         else {
@@ -808,10 +806,10 @@ impl Explorer {
 
     /// Copies the current status into the shared cell, if there is one.
     pub(super) fn publish_status(&self) {
-        if let Some(sink) = &self.status_sink {
-            if let Ok(mut cell) = sink.lock() {
-                *cell = Some(self.status());
-            }
+        if let Some(sink) = &self.status_sink
+            && let Ok(mut cell) = sink.lock()
+        {
+            *cell = Some(self.status());
         }
     }
 
