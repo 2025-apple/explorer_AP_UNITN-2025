@@ -1,0 +1,800 @@
+    Checking explorer_eco v0.1.0 (/home/tattoo/Desktop/explorer_eco)
+warning: item in documentation is missing backticks
+  --> src/eco/bag.rs:15:42
+   |
+15 |     /// Counted snapshot of the bag, for BagContentResponse.
+   |                                          ^^^^^^^^^^^^^^^^^^
+   |
+   = help: for further information visit https://rust-lang.github.io/rust-clippy/rust-1.96.0/index.html#doc_markdown
+   = note: `-W clippy::doc-markdown` implied by `-W clippy::pedantic`
+   = help: to override `-W clippy::pedantic` add `#[allow(clippy::doc_markdown)]`
+help: try
+   |
+15 -     /// Counted snapshot of the bag, for BagContentResponse.
+15 +     /// Counted snapshot of the bag, for `BagContentResponse`.
+   |
+
+warning: item in documentation is missing backticks
+  --> src/eco/explorer.rs:38:11
+   |
+38 | /// Call [Explorer::run] on the result, normally inside a thread.
+   |           ^^^^^^^^^^^^^
+   |
+   = help: for further information visit https://rust-lang.github.io/rust-clippy/rust-1.96.0/index.html#doc_markdown
+help: try
+   |
+38 - /// Call [Explorer::run] on the result, normally inside a thread.
+38 + /// Call [`Explorer::run`] on the result, normally inside a thread.
+   |
+
+warning: item in documentation is missing backticks
+  --> src/eco/explorer.rs:61:11
+   |
+61 | /// Like [create_explorer], but the planner is told exactly how long the regime lasts.
+   |           ^^^^^^^^^^^^^^^
+   |
+   = help: for further information visit https://rust-lang.github.io/rust-clippy/rust-1.96.0/index.html#doc_markdown
+help: try
+   |
+61 - /// Like [create_explorer], but the planner is told exactly how long the regime lasts.
+61 + /// Like [`create_explorer`], but the planner is told exactly how long the regime lasts.
+   |
+
+warning: item in documentation is missing backticks
+   --> src/eco/explorer.rs:144:17
+    |
+144 | /// Built with [create_explorer] and driven by [Explorer::run].
+    |                 ^^^^^^^^^^^^^^^
+    |
+    = help: for further information visit https://rust-lang.github.io/rust-clippy/rust-1.96.0/index.html#doc_markdown
+help: try
+    |
+144 - /// Built with [create_explorer] and driven by [Explorer::run].
+144 + /// Built with [`create_explorer`] and driven by [Explorer::run].
+    |
+
+warning: item in documentation is missing backticks
+   --> src/eco/explorer.rs:144:49
+    |
+144 | /// Built with [create_explorer] and driven by [Explorer::run].
+    |                                                 ^^^^^^^^^^^^^
+    |
+    = help: for further information visit https://rust-lang.github.io/rust-clippy/rust-1.96.0/index.html#doc_markdown
+help: try
+    |
+144 - /// Built with [create_explorer] and driven by [Explorer::run].
+144 + /// Built with [create_explorer] and driven by [`Explorer::run`].
+    |
+
+warning: this method could have a `#[must_use]` attribute
+   --> src/eco/explorer.rs:219:12
+    |
+219 |     pub fn with_task(mut self, target: ComplexResourceType) -> Self {
+    |            ^^^^^^^^^
+    |
+    = help: for further information visit https://rust-lang.github.io/rust-clippy/rust-1.96.0/index.html#must_use_candidate
+    = note: `-W clippy::must-use-candidate` implied by `-W clippy::pedantic`
+    = help: to override `-W clippy::pedantic` add `#[allow(clippy::must_use_candidate)]`
+help: add the attribute
+    |
+219 ~     #[must_use]
+220 ~     pub fn with_task(mut self, target: ComplexResourceType) -> Self {
+    |
+
+warning: missing `#[must_use]` attribute on a method returning `Self`
+   --> src/eco/explorer.rs:219:5
+    |
+219 | /     pub fn with_task(mut self, target: ComplexResourceType) -> Self {
+220 | |         self.task = Some(target);
+221 | |         self
+222 | |     }
+    | |_____^
+    |
+    = help: consider adding the `#[must_use]` attribute to the method or directly to the `Self` type
+    = help: for further information visit https://rust-lang.github.io/rust-clippy/rust-1.96.0/index.html#return_self_not_must_use
+    = note: `-W clippy::return-self-not-must-use` implied by `-W clippy::pedantic`
+    = help: to override `-W clippy::pedantic` add `#[allow(clippy::return_self_not_must_use)]`
+
+warning: this function has too many lines (124/100)
+   --> src/eco/explorer.rs:270:5
+    |
+270 |     pub(super) fn handle_orchestrator_message(&mut self, msg: OrchestratorToExplorer) {
+    |     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    |
+    = help: for further information visit https://rust-lang.github.io/rust-clippy/rust-1.96.0/index.html#too_many_lines
+    = note: `-W clippy::too-many-lines` implied by `-W clippy::pedantic`
+    = help: to override `-W clippy::pedantic` add `#[allow(clippy::too_many_lines)]`
+
+warning: you seem to be trying to use `match` for destructuring a single pattern. Consider using `if let`
+   --> src/eco/explorer.rs:315:17
+    |
+315 | /                 match sender_to_new_planet {
+316 | |                     Some(new_to_planet) => {
+317 | |                         logging::moved_to_planet(self.id, planet_id);
+318 | |                         let changed_planet = planet_id != self.current_planet_id;
+...   |
+343 | |                 }
+    | |_________________^
+    |
+    = help: for further information visit https://rust-lang.github.io/rust-clippy/rust-1.96.0/index.html#single_match_else
+    = note: `-W clippy::single-match-else` implied by `-W clippy::pedantic`
+    = help: to override `-W clippy::pedantic` add `#[allow(clippy::single_match_else)]`
+help: try
+    |
+315 ~                 if let Some(new_to_planet) = sender_to_new_planet {
+316 +                     logging::moved_to_planet(self.id, planet_id);
+317 +                     let changed_planet = planet_id != self.current_planet_id;
+318 +                     self.planet_link.to_planet = Some(new_to_planet);
+319 +                     if let Some(rx) = &self.planet_link.from_planet {
+320 +                         while rx.try_recv().is_ok() {}
+321 +                     }
+322 +                     self.current_planet_id = planet_id;
+323 +                     self.world.visited.insert(planet_id);
+324 +                     // Accepted move: any travel request is now settled, and
+325 +                     // this is the moment the move is paid for.
+326 +                     self.comms.resolve_travel();
+327 +                     if changed_planet {
+328 +                         self.charge_move();
+329 +                     }
+330 +                 } else {
+331 +                     logging::move_rejected(self.id, planet_id);
+332 +                     // Only a refusal of the move WE asked for settles our
+333 +                     // pending request; it is free, but cool down so the same
+334 +                     // refused move is not retried at once.
+335 +                     if self.comms.travel_target() == Some(planet_id) {
+336 +                         self.world.invalidate_neighbors(self.current_planet_id);
+337 +                         self.comms.resolve_travel();
+338 +                         self.comms.cool_down(Instant::now());
+339 +                     }
+340 +                 }
+    |
+
+warning: item in documentation is missing backticks
+   --> src/eco/explorer.rs:420:9
+    |
+420 |     /// PLANET_REPLY_TIMEOUT for the reply that answers it.
+    |         ^^^^^^^^^^^^^^^^^^^^
+    |
+    = help: for further information visit https://rust-lang.github.io/rust-clippy/rust-1.96.0/index.html#doc_markdown
+help: try
+    |
+420 -     /// PLANET_REPLY_TIMEOUT for the reply that answers it.
+420 +     /// `PLANET_REPLY_TIMEOUT` for the reply that answers it.
+    |
+
+warning: this `if` statement can be collapsed
+   --> src/eco/explorer.rs:811:9
+    |
+811 | /         if let Some(sink) = &self.status_sink {
+812 | |             if let Ok(mut cell) = sink.lock() {
+813 | |                 *cell = Some(self.status());
+814 | |             }
+815 | |         }
+    | |_________^
+    |
+    = help: for further information visit https://rust-lang.github.io/rust-clippy/rust-1.96.0/index.html#collapsible_if
+    = note: `#[warn(clippy::collapsible_if)]` on by default
+help: collapse nested if block
+    |
+811 ~         if let Some(sink) = &self.status_sink
+812 ~             && let Ok(mut cell) = sink.lock() {
+813 |                 *cell = Some(self.status());
+814 ~             }
+    |
+
+warning: this argument is passed by value, but not consumed in the function body
+   --> src/eco/explorer.rs:835:46
+    |
+835 |     pub(super) fn execute(&mut self, action: Action) {
+    |                                              ^^^^^^
+    |
+help: or consider marking this type as `Copy`
+   --> src/eco/planner.rs:17:1
+    |
+ 17 | pub enum Action {
+    | ^^^^^^^^^^^^^^^
+    = help: for further information visit https://rust-lang.github.io/rust-clippy/rust-1.96.0/index.html#needless_pass_by_value
+    = note: `-W clippy::needless-pass-by-value` implied by `-W clippy::pedantic`
+    = help: to override `-W clippy::pedantic` add `#[allow(clippy::needless_pass_by_value)]`
+help: consider taking a reference instead
+    |
+835 |     pub(super) fn execute(&mut self, action: &Action) {
+    |                                              +
+
+warning: redundant closure
+   --> src/eco/planner.rs:110:29
+    |
+110 |                 .min_by_key(|path| path.len());
+    |                             ^^^^^^^^^^^^^^^^^ help: replace the closure with the method itself: `std::vec::Vec::len`
+    |
+    = help: for further information visit https://rust-lang.github.io/rust-clippy/rust-1.96.0/index.html#redundant_closure_for_method_calls
+    = note: `-W clippy::redundant-closure-for-method-calls` implied by `-W clippy::pedantic`
+    = help: to override `-W clippy::pedantic` add `#[allow(clippy::redundant_closure_for_method_calls)]`
+
+warning: this argument is passed by value, but not consumed in the function body
+   --> src/eco/planner.rs:123:15
+    |
+123 |         path: Vec<ID>,
+    |               ^^^^^^^ help: consider changing the type to: `&[ID]`
+    |
+    = help: for further information visit https://rust-lang.github.io/rust-clippy/rust-1.96.0/index.html#needless_pass_by_value
+
+warning: casts from `u8` to `f64` can be expressed infallibly using `From`
+   --> src/eco/planner.rs:185:40
+    |
+185 |         let cycles_left = (days_left * CYCLES_PER_DAY as f64).max(1.0);
+    |                                        ^^^^^^^^^^^^^^^^^^^^^
+    |
+    = help: an `as` cast can become silently lossy if the types change in the future
+    = help: for further information visit https://rust-lang.github.io/rust-clippy/rust-1.96.0/index.html#cast_lossless
+    = note: `-W clippy::cast-lossless` implied by `-W clippy::pedantic`
+    = help: to override `-W clippy::pedantic` add `#[allow(clippy::cast_lossless)]`
+help: use `f64::from` instead
+    |
+185 -         let cycles_left = (days_left * CYCLES_PER_DAY as f64).max(1.0);
+185 +         let cycles_left = (days_left * f64::from(CYCLES_PER_DAY)).max(1.0);
+    |
+
+warning: casts from `u32` to `f64` can be expressed infallibly using `From`
+   --> src/eco/planner.rs:186:24
+    |
+186 |         let cost_now = action_cost_now as f64;
+    |                        ^^^^^^^^^^^^^^^^^^^^^^
+    |
+    = help: an `as` cast can become silently lossy if the types change in the future
+    = help: for further information visit https://rust-lang.github.io/rust-clippy/rust-1.96.0/index.html#cast_lossless
+help: use `f64::from` instead
+    |
+186 -         let cost_now = action_cost_now as f64;
+186 +         let cost_now = f64::from(action_cost_now);
+    |
+
+warning: casts from `u32` to `f64` can be expressed infallibly using `From`
+   --> src/eco/planner.rs:187:44
+    |
+187 |         let cost_if_waited = cycles_left * stay_cost_now as f64 + action_cost_after_wait as f64;
+    |                                            ^^^^^^^^^^^^^^^^^^^^
+    |
+    = help: an `as` cast can become silently lossy if the types change in the future
+    = help: for further information visit https://rust-lang.github.io/rust-clippy/rust-1.96.0/index.html#cast_lossless
+help: use `f64::from` instead
+    |
+187 -         let cost_if_waited = cycles_left * stay_cost_now as f64 + action_cost_after_wait as f64;
+187 +         let cost_if_waited = cycles_left * f64::from(stay_cost_now) + action_cost_after_wait as f64;
+    |
+
+warning: casts from `u32` to `f64` can be expressed infallibly using `From`
+   --> src/eco/planner.rs:187:67
+    |
+187 |         let cost_if_waited = cycles_left * stay_cost_now as f64 + action_cost_after_wait as f64;
+    |                                                                   ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    |
+    = help: an `as` cast can become silently lossy if the types change in the future
+    = help: for further information visit https://rust-lang.github.io/rust-clippy/rust-1.96.0/index.html#cast_lossless
+help: use `f64::from` instead
+    |
+187 -         let cost_if_waited = cycles_left * stay_cost_now as f64 + action_cost_after_wait as f64;
+187 +         let cost_if_waited = cycles_left * stay_cost_now as f64 + f64::from(action_cost_after_wait);
+    |
+
+warning: usage of wildcard import for enum variants
+  --> src/eco/recipes.rs:15:9
+   |
+15 |     use BasicResourceType::*;
+   |         ^^^^^^^^^^^^^^^^^^^^ help: try: `BasicResourceType::{Hydrogen, Oxygen, Carbon, Silicon}`
+   |
+   = help: for further information visit https://rust-lang.github.io/rust-clippy/rust-1.96.0/index.html#enum_glob_use
+   = note: `-W clippy::enum-glob-use` implied by `-W clippy::pedantic`
+   = help: to override `-W clippy::pedantic` add `#[allow(clippy::enum_glob_use)]`
+
+warning: usage of wildcard import for enum variants
+  --> src/eco/recipes.rs:16:9
+   |
+16 |     use ComplexResourceType::*;
+   |         ^^^^^^^^^^^^^^^^^^^^^^ help: try: `ComplexResourceType::{Water, Diamond, Life, Robot, Dolphin, AIPartner}`
+   |
+   = help: for further information visit https://rust-lang.github.io/rust-clippy/rust-1.96.0/index.html#enum_glob_use
+
+warning: this `if` statement can be collapsed
+  --> src/eco/recipes.rs:55:5
+   |
+55 | /     if let Some(n) = complex.get_mut(&target) {
+56 | |         if *n > 0 {
+57 | |             *n -= 1;
+58 | |             return;
+59 | |         }
+60 | |     }
+   | |_____^
+   |
+   = help: for further information visit https://rust-lang.github.io/rust-clippy/rust-1.96.0/index.html#collapsible_if
+help: collapse nested if block
+   |
+55 ~     if let Some(n) = complex.get_mut(&target)
+56 ~         && *n > 0 {
+57 |             *n -= 1;
+58 |             return;
+59 ~         }
+   |
+
+warning: casts from `u32` to `f64` can be expressed infallibly using `From`
+  --> src/eco/regime.rs:80:17
+   |
+80 |         let x = days_lasted as f64;
+   |                 ^^^^^^^^^^^^^^^^^^
+   |
+   = help: an `as` cast can become silently lossy if the types change in the future
+   = help: for further information visit https://rust-lang.github.io/rust-clippy/rust-1.96.0/index.html#cast_lossless
+help: use `f64::from` instead
+   |
+80 -         let x = days_lasted as f64;
+80 +         let x = f64::from(days_lasted);
+   |
+
+warning: casts from `u32` to `f64` can be expressed infallibly using `From`
+   --> src/eco/regime.rs:104:27
+    |
+104 |         (expected_total - days_spent_in_regime as f64).max(0.0)
+    |                           ^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    |
+    = help: an `as` cast can become silently lossy if the types change in the future
+    = help: for further information visit https://rust-lang.github.io/rust-clippy/rust-1.96.0/index.html#cast_lossless
+help: use `f64::from` instead
+    |
+104 -         (expected_total - days_spent_in_regime as f64).max(0.0)
+104 +         (expected_total - f64::from(days_spent_in_regime)).max(0.0)
+    |
+
+warning: casts from `u32` to `f64` can be expressed infallibly using `From`
+   --> src/eco/regime.rs:135:18
+    |
+135 |             } => *days_left_in_regime as f64,
+    |                  ^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    |
+    = help: an `as` cast can become silently lossy if the types change in the future
+    = help: for further information visit https://rust-lang.github.io/rust-clippy/rust-1.96.0/index.html#cast_lossless
+help: use `f64::from` instead
+    |
+135 -             } => *days_left_in_regime as f64,
+135 +             } => f64::from(*days_left_in_regime),
+    |
+
+warning: this `if` statement can be collapsed
+  --> src/eco/comms.rs:71:9
+   |
+71 | /         if let Some(since) = since {
+72 | |             if now.saturating_duration_since(since) >= PENDING_TIMEOUT {
+73 | |                 self.last_expired = Some(self.pending);
+74 | |                 self.pending = Pending::Idle;
+...  |
+77 | |         }
+   | |_________^
+   |
+   = help: for further information visit https://rust-lang.github.io/rust-clippy/rust-1.96.0/index.html#collapsible_if
+help: collapse nested if block
+   |
+71 ~         if let Some(since) = since
+72 ~             && now.saturating_duration_since(since) >= PENDING_TIMEOUT {
+73 |                 self.last_expired = Some(self.pending);
+74 |                 self.pending = Pending::Idle;
+75 |                 self.retry_at = Some(now + RETRY_COOLDOWN);
+76 ~             }
+   |
+
+warning: `explorer_eco` (lib) generated 25 warnings (run `cargo clippy --fix --lib -p explorer_eco -- -W clippy::pedantic` to apply 21 suggestions)
+warning: this `continue` expression is redundant
+  --> tests/bag_test.rs:32:18
+   |
+32 |             _ => continue,
+   |                  ^^^^^^^^
+   |
+   = help: consider dropping the `continue` expression
+   = help: for further information visit https://rust-lang.github.io/rust-clippy/rust-1.96.0/index.html#needless_continue
+   = note: `-W clippy::needless-continue` implied by `-W clippy::pedantic`
+   = help: to override `-W clippy::pedantic` add `#[allow(clippy::needless_continue)]`
+
+warning: this `continue` expression is redundant
+  --> tests/planet_link.rs:45:18
+   |
+45 |             _ => continue,
+   |                  ^^^^^^^^
+   |
+   = help: consider dropping the `continue` expression
+   = help: for further information visit https://rust-lang.github.io/rust-clippy/rust-1.96.0/index.html#needless_continue
+   = note: `-W clippy::needless-continue` implied by `-W clippy::pedantic`
+   = help: to override `-W clippy::pedantic` add `#[allow(clippy::needless_continue)]`
+
+warning: `explorer_eco` (test "bag_test") generated 1 warning
+warning: `explorer_eco` (test "planet_link") generated 1 warning
+warning: casting `usize` to `u32` may truncate the value on targets with 64-bit wide pointers
+  --> tests/common.rs:98:38
+   |
+98 |                     available_cells: charged as ID,
+   |                                      ^^^^^^^^^^^^^
+   |
+   = help: if this is intentional allow the lint with `#[allow(clippy::cast_possible_truncation)]` ...
+   = help: for further information visit https://rust-lang.github.io/rust-clippy/rust-1.96.0/index.html#cast_possible_truncation
+   = note: `-W clippy::cast-possible-truncation` implied by `-W clippy::pedantic`
+   = help: to override `-W clippy::pedantic` add `#[allow(clippy::cast_possible_truncation)]`
+help: ... or use `try_from` and handle the error accordingly
+   |
+98 -                     available_cells: charged as ID,
+98 +                     available_cells: ID::try_from(charged),
+   |
+
+warning: item in documentation is missing backticks
+   --> tests/common.rs:123:62
+    |
+123 |     /// The sender Eco must use to talk to this planet (what MoveToPlanet carries).
+    |                                                              ^^^^^^^^^^^^
+    |
+    = help: for further information visit https://rust-lang.github.io/rust-clippy/rust-1.96.0/index.html#doc_markdown
+    = note: `-W clippy::doc-markdown` implied by `-W clippy::pedantic`
+    = help: to override `-W clippy::pedantic` add `#[allow(clippy::doc_markdown)]`
+help: try
+    |
+123 -     /// The sender Eco must use to talk to this planet (what MoveToPlanet carries).
+123 +     /// The sender Eco must use to talk to this planet (what `MoveToPlanet` carries).
+    |
+
+warning: docs for function which may panic missing `# Panics` section
+   --> tests/common.rs:133:5
+    |
+133 | /     pub fn spawn(
+134 | |         id: ID,
+135 | |         planet_type: PlanetType,
+136 | |         gen_rules: Vec<BasicResourceType>,
+137 | |         comb_rules: Vec<ComplexResourceType>,
+138 | |     ) -> Self {
+    | |_____________^
+    |
+note: first possible panic found here
+   --> tests/common.rs:143:26
+    |
+143 |           let mut planet = Planet::new(
+    |  __________________________^
+144 | |             id,
+145 | |             planet_type,
+146 | |             Box::new(TestAI),
+...   |
+152 | |         .expect("test planet rules must be valid for the planet type");
+    | |______________________________________________________________________^
+    = help: for further information visit https://rust-lang.github.io/rust-clippy/rust-1.96.0/index.html#missing_panics_doc
+    = note: `-W clippy::missing-panics-doc` implied by `-W clippy::pedantic`
+    = help: to override `-W clippy::pedantic` add `#[allow(clippy::missing_panics_doc)]`
+
+warning: this method could have a `#[must_use]` attribute
+   --> tests/common.rs:133:12
+    |
+133 |     pub fn spawn(
+    |            ^^^^^
+    |
+    = help: for further information visit https://rust-lang.github.io/rust-clippy/rust-1.96.0/index.html#must_use_candidate
+    = note: `-W clippy::must-use-candidate` implied by `-W clippy::pedantic`
+    = help: to override `-W clippy::pedantic` add `#[allow(clippy::must_use_candidate)]`
+help: add the attribute
+    |
+133 ~     #[must_use]
+134 ~     pub fn spawn(
+    |
+
+warning: docs for function which may panic missing `# Panics` section
+   --> tests/common.rs:173:5
+    |
+173 |     pub fn start(&self) {
+    |     ^^^^^^^^^^^^^^^^^^^
+    |
+note: first possible panic found here
+   --> tests/common.rs:174:9
+    |
+174 | /         self.to_planet_orch
+175 | |             .send(OrchestratorToPlanet::StartPlanetAI)
+176 | |             .unwrap();
+    | |_____________________^
+    = help: for further information visit https://rust-lang.github.io/rust-clippy/rust-1.96.0/index.html#missing_panics_doc
+
+warning: docs for function which may panic missing `# Panics` section
+   --> tests/common.rs:183:5
+    |
+183 |     pub fn stop(&self) {
+    |     ^^^^^^^^^^^^^^^^^^
+    |
+note: first possible panic found here
+   --> tests/common.rs:184:9
+    |
+184 | /         self.to_planet_orch
+185 | |             .send(OrchestratorToPlanet::StopPlanetAI)
+186 | |             .unwrap();
+    | |_____________________^
+    = help: for further information visit https://rust-lang.github.io/rust-clippy/rust-1.96.0/index.html#missing_panics_doc
+
+warning: docs for function which may panic missing `# Panics` section
+   --> tests/common.rs:194:5
+    |
+194 |     pub fn sunray(&self) {
+    |     ^^^^^^^^^^^^^^^^^^^^
+    |
+note: first possible panic found here
+   --> tests/common.rs:195:9
+    |
+195 | /         self.to_planet_orch
+196 | |             .send(OrchestratorToPlanet::Sunray(forge().generate_sunray()))
+197 | |             .unwrap();
+    | |_____________________^
+    = help: for further information visit https://rust-lang.github.io/rust-clippy/rust-1.96.0/index.html#missing_panics_doc
+
+warning: this method could have a `#[must_use]` attribute
+   --> tests/common.rs:206:12
+    |
+206 |     pub fn admit(&self, explorer_id: ID) -> Receiver<PlanetToExplorer> {
+    |            ^^^^^
+    |
+    = help: for further information visit https://rust-lang.github.io/rust-clippy/rust-1.96.0/index.html#must_use_candidate
+help: add the attribute
+    |
+206 ~     #[must_use]
+207 ~     pub fn admit(&self, explorer_id: ID) -> Receiver<PlanetToExplorer> {
+    |
+
+warning: docs for function which may panic missing `# Panics` section
+   --> tests/common.rs:215:5
+    |
+215 |     pub fn admit_via(&self, explorer_id: ID, new_sender: Sender<PlanetToExplorer>) {
+    |     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    |
+note: first possible panic found here
+   --> tests/common.rs:216:9
+    |
+216 | /         self.to_planet_orch
+217 | |             .send(OrchestratorToPlanet::IncomingExplorerRequest {
+218 | |                 explorer_id,
+219 | |                 new_sender,
+220 | |             })
+221 | |             .unwrap();
+    | |_____________________^
+    = help: for further information visit https://rust-lang.github.io/rust-clippy/rust-1.96.0/index.html#missing_panics_doc
+
+warning: docs for function which may panic missing `# Panics` section
+   --> tests/common.rs:229:5
+    |
+229 |     pub fn release(&self, explorer_id: ID) {
+    |     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    |
+note: first possible panic found here
+   --> tests/common.rs:230:9
+    |
+230 | /         self.to_planet_orch
+231 | |             .send(OrchestratorToPlanet::OutgoingExplorerRequest { explorer_id })
+232 | |             .unwrap();
+    | |_____________________^
+    = help: for further information visit https://rust-lang.github.io/rust-clippy/rust-1.96.0/index.html#missing_panics_doc
+
+warning: item in documentation is missing backticks
+   --> tests/common.rs:321:19
+    |
+321 |     /// (e.g. the CurrentPlanetResult Eco sends when it starts).
+    |                   ^^^^^^^^^^^^^^^^^^^
+    |
+    = help: for further information visit https://rust-lang.github.io/rust-clippy/rust-1.96.0/index.html#doc_markdown
+help: try
+    |
+321 -     /// (e.g. the CurrentPlanetResult Eco sends when it starts).
+321 +     /// (e.g. the `CurrentPlanetResult` Eco sends when it starts).
+    |
+
+warning: this function could have a `#[must_use]` attribute
+   --> tests/common.rs:264:8
+    |
+264 | pub fn spawn_explorer(explorer_id: ID, planet: &TestPlanet) -> RunningExplorer {
+    |        ^^^^^^^^^^^^^^
+    |
+    = help: for further information visit https://rust-lang.github.io/rust-clippy/rust-1.96.0/index.html#must_use_candidate
+help: add the attribute
+    |
+264 + #[must_use]
+265 | pub fn spawn_explorer(explorer_id: ID, planet: &TestPlanet) -> RunningExplorer {
+    |
+
+warning: this function could have a `#[must_use]` attribute
+   --> tests/common.rs:269:8
+    |
+269 | pub fn spawn_explorer_with_task(
+    |        ^^^^^^^^^^^^^^^^^^^^^^^^
+    |
+    = help: for further information visit https://rust-lang.github.io/rust-clippy/rust-1.96.0/index.html#must_use_candidate
+help: add the attribute
+    |
+269 + #[must_use]
+270 | pub fn spawn_explorer_with_task(
+    |
+
+warning: docs for function which may panic missing `# Panics` section
+   --> tests/common.rs:310:5
+    |
+310 |     pub fn send(&self, msg: OrchestratorToExplorer) {
+    |     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    |
+note: first possible panic found here
+   --> tests/common.rs:311:9
+    |
+311 |         self.to_explorer.send(msg).unwrap();
+    |         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    = help: for further information visit https://rust-lang.github.io/rust-clippy/rust-1.96.0/index.html#missing_panics_doc
+
+warning: this method could have a `#[must_use]` attribute
+   --> tests/common.rs:315:12
+    |
+315 |     pub fn next_message(&self, timeout: Duration) -> Option<ExplorerToOrchestrator<BagContent>> {
+    |            ^^^^^^^^^^^^
+    |
+    = help: for further information visit https://rust-lang.github.io/rust-clippy/rust-1.96.0/index.html#must_use_candidate
+help: add the attribute
+    |
+315 ~     #[must_use]
+316 ~     pub fn next_message(&self, timeout: Duration) -> Option<ExplorerToOrchestrator<BagContent>> {
+    |
+
+warning: used underscore-prefixed binding
+   --> src/eco/tests/explorer_test.rs:462:13
+    |
+462 |     assert!(r._planet_rx.try_recv().is_err()); // the planet was never asked
+    |             ^^^^^^^^^^^^
+    |
+note: binding is defined here
+   --> src/eco/tests/explorer_test.rs:21:5
+    |
+ 21 |     _planet_rx: Receiver<ExplorerToPlanet>,
+    |     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    = help: for further information visit https://rust-lang.github.io/rust-clippy/rust-1.96.0/index.html#used_underscore_binding
+    = note: `-W clippy::used-underscore-binding` implied by `-W clippy::pedantic`
+    = help: to override `-W clippy::pedantic` add `#[allow(clippy::used_underscore_binding)]`
+
+warning: item in documentation is missing backticks
+   --> tests/common.rs:395:63
+    |
+395 |     /// The orchestrator's move choreography for one accepted TravelToPlanetRequest.
+    |                                                               ^^^^^^^^^^^^^^^^^^^^^
+    |
+    = help: for further information visit https://rust-lang.github.io/rust-clippy/rust-1.96.0/index.html#doc_markdown
+help: try
+    |
+395 -     /// The orchestrator's move choreography for one accepted TravelToPlanetRequest.
+395 +     /// The orchestrator's move choreography for one accepted `TravelToPlanetRequest`.
+    |
+
+warning: this `if` can be collapsed into the outer `match`
+   --> tests/common.rs:445:21
+    |
+445 | /                     if bag_content
+446 | |                         .iter()
+447 | |                         .any(|(kind, count)| kind == &want && *count > 0)
+...   |
+450 | |                     }
+    | |_____________________^
+    |
+    = help: for further information visit https://rust-lang.github.io/rust-clippy/rust-1.96.0/index.html#collapsible_match
+    = note: `#[warn(clippy::collapsible_match)]` on by default
+help: collapse nested if block
+    |
+444 ~                 ExplorerToOrchestrator::BagContentResponse { bag_content, .. }
+445 |                     if bag_content
+446 |                         .iter()
+447 |                         .any(|(kind, count)| kind == &want && *count > 0)
+448 ~                     => {
+449 |                         return true;
+450 ~                     }
+    |
+
+warning: this method could have a `#[must_use]` attribute
+   --> tests/common.rs:363:12
+    |
+363 |     pub fn new(outgoing_first: bool) -> Self {
+    |            ^^^
+    |
+    = help: for further information visit https://rust-lang.github.io/rust-clippy/rust-1.96.0/index.html#must_use_candidate
+help: add the attribute
+    |
+363 ~     #[must_use]
+364 ~     pub fn new(outgoing_first: bool) -> Self {
+    |
+
+warning: this method could have a `#[must_use]` attribute
+   --> tests/common.rs:381:12
+    |
+381 |     pub fn planet(&self, id: ID) -> &TestPlanet {
+    |            ^^^^^^
+    |
+    = help: for further information visit https://rust-lang.github.io/rust-clippy/rust-1.96.0/index.html#must_use_candidate
+help: add the attribute
+    |
+381 ~     #[must_use]
+382 ~     pub fn planet(&self, id: ID) -> &TestPlanet {
+    |
+
+warning: this method could have a `#[must_use]` attribute
+   --> tests/common.rs:413:12
+    |
+413 |     pub fn serve_until_bag_contains(
+    |            ^^^^^^^^^^^^^^^^^^^^^^^^
+    |
+    = help: for further information visit https://rust-lang.github.io/rust-clippy/rust-1.96.0/index.html#must_use_candidate
+help: add the attribute
+    |
+413 ~     #[must_use]
+414 ~     pub fn serve_until_bag_contains(
+    |
+
+warning: `explorer_eco` (test "harness_smoke") generated 5 warnings (2 duplicates) (run `cargo clippy --fix --test "harness_smoke" -p explorer_eco -- -W clippy::pedantic` to apply 3 suggestions)
+warning: `explorer_eco` (test "common") generated 20 warnings (3 duplicates) (run `cargo clippy --fix --test "common" -p explorer_eco -- -W clippy::pedantic` to apply 9 suggestions)
+warning: `explorer_eco` (test "end_to_end") generated 5 warnings (5 duplicates)
+warning: unchecked subtraction of a `Duration`
+  --> src/eco/tests/pending_tests.rs:19:24
+   |
+19 |     assert!(!c.may_act(t0 + PENDING_TIMEOUT - MS));
+   |                        ^^^^^^^^^^^^^^^^^^^^^^^^^ help: try: `(t0 + PENDING_TIMEOUT).checked_sub(MS).unwrap()`
+   |
+   = help: for further information visit https://rust-lang.github.io/rust-clippy/rust-1.96.0/index.html#unchecked_time_subtraction
+   = note: `-W clippy::unchecked-time-subtraction` implied by `-W clippy::pedantic`
+   = help: to override `-W clippy::pedantic` add `#[allow(clippy::unchecked_time_subtraction)]`
+
+warning: unchecked subtraction of a `Duration`
+  --> src/eco/tests/pending_tests.rs:30:24
+   |
+30 |     assert!(!c.may_act(expiry + RETRY_COOLDOWN - MS));
+   |                        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^ help: try: `(expiry + RETRY_COOLDOWN).checked_sub(MS).unwrap()`
+   |
+   = help: for further information visit https://rust-lang.github.io/rust-clippy/rust-1.96.0/index.html#unchecked_time_subtraction
+
+warning: unchecked subtraction of a `Duration`
+  --> src/eco/tests/pending_tests.rs:63:24
+   |
+63 |     assert!(!c.may_act(t0 + RETRY_COOLDOWN - MS));
+   |                        ^^^^^^^^^^^^^^^^^^^^^^^^ help: try: `(t0 + RETRY_COOLDOWN).checked_sub(MS).unwrap()`
+   |
+   = help: for further information visit https://rust-lang.github.io/rust-clippy/rust-1.96.0/index.html#unchecked_time_subtraction
+
+warning: unchecked subtraction of a `Duration`
+  --> src/eco/tests/pending_tests.rs:74:26
+   |
+74 |     assert!(!c.may_probe(t0 + RETRY_COOLDOWN - MS));
+   |                          ^^^^^^^^^^^^^^^^^^^^^^^^ help: try: `(t0 + RETRY_COOLDOWN).checked_sub(MS).unwrap()`
+   |
+   = help: for further information visit https://rust-lang.github.io/rust-clippy/rust-1.96.0/index.html#unchecked_time_subtraction
+
+warning: this argument is passed by value, but not consumed in the function body
+  --> src/eco/tests/planner_test.rs:13:13
+   |
+13 |     basics: HashMap<B, u32>,
+   |             ^^^^^^^^^^^^^^^
+   |
+   = help: for further information visit https://rust-lang.github.io/rust-clippy/rust-1.96.0/index.html#needless_pass_by_value
+help: consider taking a reference instead
+   |
+13 |     basics: &HashMap<B, u32>,
+   |             +
+
+warning: this argument is passed by value, but not consumed in the function body
+  --> src/eco/tests/planner_test.rs:14:14
+   |
+14 |     complex: HashMap<C, u32>,
+   |              ^^^^^^^^^^^^^^^
+   |
+   = help: for further information visit https://rust-lang.github.io/rust-clippy/rust-1.96.0/index.html#needless_pass_by_value
+help: consider taking a reference instead
+   |
+14 |     complex: &HashMap<C, u32>,
+   |              +
+
+warning: this argument is passed by value, but not consumed in the function body
+ --> src/eco/tests/recipes_test.rs:9:36
+  |
+9 | fn count<T: PartialEq>(v: &[T], x: T) -> usize {
+  |                                    ^
+  |
+  = help: for further information visit https://rust-lang.github.io/rust-clippy/rust-1.96.0/index.html#needless_pass_by_value
+help: consider taking a reference instead
+  |
+9 | fn count<T: PartialEq>(v: &[T], x: &T) -> usize {
+  |                                    +
+
+warning: `explorer_eco` (lib test) generated 31 warnings (23 duplicates) (run `cargo clippy --fix --lib -p explorer_eco --tests -- -W clippy::pedantic` to apply 4 suggestions)
+    Finished `dev` profile [unoptimized + debuginfo] target(s) in 0.51s

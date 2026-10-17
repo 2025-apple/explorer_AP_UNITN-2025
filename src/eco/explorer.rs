@@ -142,6 +142,9 @@ fn reply_kind(request: ExplorerToPlanetKind) -> PlanetToExplorerKind {
 
 /// Eco: an autonomous explorer with its own coin economy.
 /// Built with [create_explorer] and driven by [Explorer::run].
+// Four independent on/off flags; grouping them in an enum would add
+// complexity without making the state machine clearer.
+#[allow(clippy::struct_excessive_bools)]
 pub struct Explorer {
     id: ID,
 
@@ -412,11 +415,6 @@ impl Explorer {
     }
 
     // ==================== Explorer -> Planet ====================
-
-    /// Builds the `ComplexResourceRequest` for a target type by pulling
-    /// matching ingredient resources out of the bag. Puts back whatever
-    /// it already took if the full recipe isn't available, so nothing is
-    /// lost on failure. (Unchanged from the skeleton.)
 
     /// The ONE place Eco talks to a planet. Sends `msg`, then waits up to
     /// PLANET_REPLY_TIMEOUT for the reply that answers it.

@@ -26,7 +26,6 @@ pub enum Action {
 pub struct Planner;
 
 impl Planner {
-    #[allow(clippy::too_many_arguments)]
     /// True if the *known* galaxy can still deliver `target`: every basic still
     /// to be mined has a known supplier and every combine still to be run has
     /// a known planet that can do it. Stock already in the bag counts.
@@ -47,6 +46,8 @@ impl Planner {
             .all(|c| world.combos.values().any(|s| s.contains(c)));
         basics_ok && steps_ok
     }
+
+    #[allow(clippy::too_many_arguments)]
     pub fn next_action(
         target: ComplexResourceType,
         current_planet: ID,

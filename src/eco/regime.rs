@@ -123,7 +123,7 @@ pub enum ForecastMode<'a> {
     },
 }
 
-impl<'a> ForecastMode<'a> {
+impl ForecastMode<'_> {
     pub(super) fn days_left_estimate(&self, regime: EconomyRegime) -> f64 {
         match self {
             ForecastMode::Blind {
