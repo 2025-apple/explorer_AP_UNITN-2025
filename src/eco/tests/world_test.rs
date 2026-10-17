@@ -54,7 +54,10 @@ fn a_refresh_that_only_adds_planets_forgets_nothing() {
 #[test]
 fn paths_never_go_through_a_forgotten_planet() {
     let mut w = line_world();
-    assert_eq!(w.nearest_known_source(1, BasicResourceType::Carbon), Some(vec![1, 2, 3]));
+    assert_eq!(
+        w.nearest_known_source(1, BasicResourceType::Carbon),
+        Some(vec![1, 2, 3])
+    );
     w.forget_planet(2);
     assert_eq!(w.nearest_known_source(1, BasicResourceType::Carbon), None);
 }

@@ -1,5 +1,3 @@
-
-
 use std::thread;
 use std::time::Duration;
 
@@ -44,13 +42,17 @@ fn main() {
     });
 
     // Kick the AI on.
-    tx_to_explorer.send(OrchestratorToExplorer::StartExplorerAI).unwrap();
+    tx_to_explorer
+        .send(OrchestratorToExplorer::StartExplorerAI)
+        .unwrap();
 
     // Let it run for a bit so you can watch the economy tick in the logs
     // (run with RUST_LOG=info to see them).
     thread::sleep(Duration::from_secs(5));
 
-    tx_to_explorer.send(OrchestratorToExplorer::KillExplorer).unwrap();
+    tx_to_explorer
+        .send(OrchestratorToExplorer::KillExplorer)
+        .unwrap();
 
     handle.join().unwrap();
     drop(tx_to_explorer);

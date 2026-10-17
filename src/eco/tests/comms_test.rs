@@ -1,10 +1,12 @@
 use std::collections::HashSet;
 use std::thread;
 
-use crossbeam_channel::{unbounded, Receiver, Sender};
+use crossbeam_channel::{Receiver, Sender, unbounded};
 
 use common_game::components::resource::{BasicResourceType, ComplexResourceType};
-use common_game::protocols::orchestrator_explorer::{ExplorerToOrchestrator, OrchestratorToExplorer};
+use common_game::protocols::orchestrator_explorer::{
+    ExplorerToOrchestrator, OrchestratorToExplorer,
+};
 use common_game::protocols::planet_explorer::{ExplorerToPlanet, PlanetToExplorer};
 
 use crate::eco::explorer::{BagContent, Explorer, PlanetError};
@@ -39,7 +41,10 @@ fn stopped_planet_is_an_error_and_nothing_is_recorded() {
 #[test]
 fn silent_planet_times_out_and_nothing_is_recorded() {
     let (mut eco, _planet) = rig(); // kept alive, but never answers (takes ~2 s)
-    assert_eq!(eco.query_supported_combinations(), Err(PlanetError::NoReply));
+    assert_eq!(
+        eco.query_supported_combinations(),
+        Err(PlanetError::NoReply)
+    );
     assert!(!eco.world.combos.contains_key(&100));
 }
 
@@ -58,10 +63,15 @@ fn a_valid_empty_answer_is_recorded() {
         planet.requests.recv().unwrap();
         planet
             .replies
-            .send(PlanetToExplorer::SupportedCombinationResponse { combination_list: HashSet::new() })
+            .send(PlanetToExplorer::SupportedCombinationResponse {
+                combination_list: HashSet::new(),
+            })
             .unwrap();
     });
-    assert_eq!(eco.query_supported_combinations(), Ok(HashSet::<ComplexResourceType>::new()));
+    assert_eq!(
+        eco.query_supported_combinations(),
+        Ok(HashSet::<ComplexResourceType>::new())
+    );
     t.join().unwrap();
     assert_eq!(eco.world.combos.get(&100), Some(&HashSet::new()));
 }
@@ -100,7 +110,9 @@ fn a_late_reply_of_the_wrong_kind_is_skipped() {
         // First a late answer to some OTHER question, then the real one.
         planet
             .replies
-            .send(PlanetToExplorer::SupportedCombinationResponse { combination_list: HashSet::new() })
+            .send(PlanetToExplorer::SupportedCombinationResponse {
+                combination_list: HashSet::new(),
+            })
             .unwrap();
         planet
             .replies

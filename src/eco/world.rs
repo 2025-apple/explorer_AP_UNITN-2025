@@ -50,7 +50,11 @@ impl WorldModel {
     pub fn forget_planet(&mut self, planet: ID) {
         self.neighbors.remove(&planet);
         self.stale_neighbors.remove(&planet);
-        for list in self.neighbors.values_mut().chain(self.stale_neighbors.values_mut()) {
+        for list in self
+            .neighbors
+            .values_mut()
+            .chain(self.stale_neighbors.values_mut())
+        {
             list.retain(|&p| p != planet);
         }
         self.resources.remove(&planet);
@@ -70,11 +74,21 @@ impl WorldModel {
     /// planet known to support `resource`. `None` if no known planet has
     /// it yet — caller should fall back to exploration.
     pub fn nearest_known_source(&self, from: ID, resource: BasicResourceType) -> Option<Vec<ID>> {
-        self.bfs_to(from, |p| self.resources.get(&p).is_some_and(|s| s.contains(&resource)))
+        self.bfs_to(from, |p| {
+            self.resources
+                .get(&p)
+                .is_some_and(|s| s.contains(&resource))
+        })
     }
 
-    pub fn nearest_known_combo_planet(&self, from: ID, combo: ComplexResourceType) -> Option<Vec<ID>> {
-        self.bfs_to(from, |p| self.combos.get(&p).is_some_and(|s| s.contains(&combo)))
+    pub fn nearest_known_combo_planet(
+        &self,
+        from: ID,
+        combo: ComplexResourceType,
+    ) -> Option<Vec<ID>> {
+        self.bfs_to(from, |p| {
+            self.combos.get(&p).is_some_and(|s| s.contains(&combo))
+        })
     }
 
     /// Nearest planet worth going to when the shopping list needs something no
@@ -97,7 +111,9 @@ impl WorldModel {
         seen.insert(from);
 
         while let Some(cur) = queue.pop_front() {
-            let Some(neighbors) = self.neighbors.get(&cur) else { continue };
+            let Some(neighbors) = self.neighbors.get(&cur) else {
+                continue;
+            };
             for &n in neighbors {
                 if seen.insert(n) {
                     came_from.insert(n, cur);

@@ -20,9 +20,15 @@ pub(super) const RETRY_COOLDOWN: Duration = Duration::from_secs(1);
 pub(super) enum Pending {
     Idle,
     /// Sent `NeighborsRequest` while on `for_planet`.
-    Neighbors { for_planet: ID, since: Instant },
+    Neighbors {
+        for_planet: ID,
+        since: Instant,
+    },
     /// Sent `TravelToPlanetRequest` towards `to`.
-    Travel { to: ID, since: Instant },
+    Travel {
+        to: ID,
+        since: Instant,
+    },
 }
 
 #[derive(Debug)]
@@ -38,7 +44,12 @@ pub(super) struct Comms {
 
 impl Comms {
     pub(super) fn new() -> Self {
-        Comms { pending: Pending::Idle, retry_at: None, probe_retry_at: None, last_expired: None }
+        Comms {
+            pending: Pending::Idle,
+            retry_at: None,
+            probe_retry_at: None,
+            last_expired: None,
+        }
     }
 
     pub(super) fn may_probe(&self, now: Instant) -> bool {
@@ -78,7 +89,10 @@ impl Comms {
     }
 
     pub(super) fn start_neighbors(&mut self, for_planet: ID, now: Instant) {
-        self.pending = Pending::Neighbors { for_planet, since: now };
+        self.pending = Pending::Neighbors {
+            for_planet,
+            since: now,
+        };
     }
 
     pub(super) fn start_travel(&mut self, to: ID, now: Instant) {

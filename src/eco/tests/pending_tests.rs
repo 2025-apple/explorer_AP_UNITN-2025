@@ -1,6 +1,6 @@
 use std::time::{Duration, Instant};
 
-use crate::eco::comms::{Comms, Pending, PENDING_TIMEOUT, RETRY_COOLDOWN};
+use crate::eco::comms::{Comms, PENDING_TIMEOUT, Pending, RETRY_COOLDOWN};
 
 const MS: Duration = Duration::from_millis(1);
 
@@ -102,7 +102,10 @@ fn an_expired_request_is_reported_once() {
     let mut c = Comms::new();
     c.start_travel(9, t0);
     c.may_act(t0 + PENDING_TIMEOUT);
-    assert!(matches!(c.take_expired(), Some(Pending::Travel { to: 9, .. })));
+    assert!(matches!(
+        c.take_expired(),
+        Some(Pending::Travel { to: 9, .. })
+    ));
     assert_eq!(c.take_expired(), None);
 }
 

@@ -14,7 +14,11 @@ pub struct Wallet {
 
 impl Wallet {
     pub fn new(starting: i64) -> Self {
-        Self { coins: starting, earned: 0, spent: 0 }
+        Self {
+            coins: starting,
+            earned: 0,
+            spent: 0,
+        }
     }
 
     pub fn charge(&mut self, amount: u32) {

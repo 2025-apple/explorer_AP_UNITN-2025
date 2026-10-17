@@ -5,7 +5,6 @@ fn row(r: EconomyRegime) -> (u32, u32, u32, u32, u32) {
     (c.mv, c.stay, c.mine, c.combine, c.daily_income)
 }
 
-
 #[test]
 fn regimes_cycle_neutral_flourish_recession() {
     assert_eq!(EconomyRegime::Neutral.next(), EconomyRegime::Flourish);
@@ -31,7 +30,11 @@ fn price_tables_match_design() {
 
 #[test]
 fn income_always_covers_the_dearest_action() {
-    for r in [EconomyRegime::Neutral, EconomyRegime::Flourish, EconomyRegime::Recession] {
+    for r in [
+        EconomyRegime::Neutral,
+        EconomyRegime::Flourish,
+        EconomyRegime::Recession,
+    ] {
         let c = r.costs();
         let dearest = c.mv.max(c.stay).max(c.mine).max(c.combine);
         assert!(c.daily_income >= dearest, "{r:?}: Eco could wait forever");

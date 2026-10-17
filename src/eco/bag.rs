@@ -1,16 +1,17 @@
 //! Eco's resource inventory. All access goes through these methods —
 //! nothing outside this module reaches into the raw `Vec` directly.
 
-use std::collections::{HashMap};
+use std::collections::HashMap;
 
-use common_game::components::resource::{BasicResourceType, ComplexResourceType, GenericResource, ResourceType};
+use common_game::components::resource::{
+    BasicResourceType, ComplexResourceType, GenericResource, ResourceType,
+};
 #[derive(Debug, Default)]
 pub struct Bag {
     resources: Vec<GenericResource>,
 }
 
 impl Bag {
-
     /// Counted snapshot of the bag, for BagContentResponse.
     /// Never hands out the real resources; they can't be cloned.
     pub fn contents(&self) -> Vec<(ResourceType, usize)> {

@@ -2,7 +2,7 @@ mod common;
 
 use std::time::Duration;
 
-use common::{spawn_explorer_with_task, Galaxy, TestPlanet};
+use common::{Galaxy, TestPlanet, spawn_explorer_with_task};
 use common_game::components::planet::PlanetType;
 use common_game::components::resource::{BasicResourceType, ComplexResourceType, ResourceType};
 use common_game::protocols::orchestrator_explorer::OrchestratorToExplorer;
@@ -14,8 +14,18 @@ use common_game::protocols::orchestrator_explorer::OrchestratorToExplorer;
 /// Eco starts on planet 1 with the task "Water" (Hydrogen + Oxygen).
 fn three_planet_line(outgoing_first: bool) -> Galaxy {
     let mut galaxy = Galaxy::new(outgoing_first);
-    galaxy.add_planet(TestPlanet::spawn(1, PlanetType::A, vec![BasicResourceType::Carbon], vec![]));
-    galaxy.add_planet(TestPlanet::spawn(2, PlanetType::A, vec![BasicResourceType::Oxygen], vec![]));
+    galaxy.add_planet(TestPlanet::spawn(
+        1,
+        PlanetType::A,
+        vec![BasicResourceType::Carbon],
+        vec![],
+    ));
+    galaxy.add_planet(TestPlanet::spawn(
+        2,
+        PlanetType::A,
+        vec![BasicResourceType::Oxygen],
+        vec![],
+    ));
     galaxy.add_planet(TestPlanet::spawn(
         3,
         PlanetType::B,

@@ -2,10 +2,12 @@ use std::collections::HashSet;
 use std::thread::{self, JoinHandle};
 use std::time::Instant;
 
-use crossbeam_channel::{unbounded, Receiver, Sender};
+use crossbeam_channel::{Receiver, Sender, unbounded};
 
 use common_game::components::resource::{BasicResourceType, ComplexResourceType};
-use common_game::protocols::orchestrator_explorer::{ExplorerToOrchestrator, OrchestratorToExplorer};
+use common_game::protocols::orchestrator_explorer::{
+    ExplorerToOrchestrator, OrchestratorToExplorer,
+};
 use common_game::protocols::planet_explorer::{
     ExplorerToPlanet, ExplorerToPlanetKind, PlanetToExplorer,
 };
@@ -19,7 +21,12 @@ type FromEco = Receiver<ExplorerToOrchestrator<BagContent>>;
 /// dropped, the kinds of request it received (in order).
 fn start(
     answer: impl Fn(&ExplorerToPlanet) -> PlanetToExplorer + Send + 'static,
-) -> (Explorer, FromEco, Sender<OrchestratorToExplorer>, JoinHandle<Vec<ExplorerToPlanetKind>>) {
+) -> (
+    Explorer,
+    FromEco,
+    Sender<OrchestratorToExplorer>,
+    JoinHandle<Vec<ExplorerToPlanetKind>>,
+) {
     let (to_eco, rx_orch) = unbounded::<OrchestratorToExplorer>();
     let (tx_orch, from_eco) = unbounded::<ExplorerToOrchestrator<BagContent>>();
     let (tx_planet, requests) = unbounded::<ExplorerToPlanet>();
@@ -44,21 +51,27 @@ fn start(
 
 fn helpful_planet(req: &ExplorerToPlanet) -> PlanetToExplorer {
     match req {
-        ExplorerToPlanet::SupportedResourceRequest { .. } => PlanetToExplorer::SupportedResourceResponse {
-            resource_list: HashSet::from([BasicResourceType::Carbon]),
-        },
-        ExplorerToPlanet::SupportedCombinationRequest { .. } => PlanetToExplorer::SupportedCombinationResponse {
-            combination_list: HashSet::from([ComplexResourceType::Diamond]),
-        },
+        ExplorerToPlanet::SupportedResourceRequest { .. } => {
+            PlanetToExplorer::SupportedResourceResponse {
+                resource_list: HashSet::from([BasicResourceType::Carbon]),
+            }
+        }
+        ExplorerToPlanet::SupportedCombinationRequest { .. } => {
+            PlanetToExplorer::SupportedCombinationResponse {
+                combination_list: HashSet::from([ComplexResourceType::Diamond]),
+            }
+        }
         _ => PlanetToExplorer::Stopped,
     }
 }
 
 fn planet_without_combinations(req: &ExplorerToPlanet) -> PlanetToExplorer {
     match req {
-        ExplorerToPlanet::SupportedCombinationRequest { .. } => PlanetToExplorer::SupportedCombinationResponse {
-            combination_list: HashSet::new(),
-        },
+        ExplorerToPlanet::SupportedCombinationRequest { .. } => {
+            PlanetToExplorer::SupportedCombinationResponse {
+                combination_list: HashSet::new(),
+            }
+        }
         other => helpful_planet(other),
     }
 }

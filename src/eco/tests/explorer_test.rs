@@ -1,7 +1,9 @@
 use common_game::components::resource::ComplexResourceType;
-use common_game::protocols::orchestrator_explorer::{ExplorerToOrchestrator, OrchestratorToExplorer};
+use common_game::protocols::orchestrator_explorer::{
+    ExplorerToOrchestrator, OrchestratorToExplorer,
+};
 use common_game::protocols::planet_explorer::{ExplorerToPlanet, PlanetToExplorer};
-use crossbeam_channel::{unbounded, Receiver, Sender};
+use crossbeam_channel::{Receiver, Sender, unbounded};
 
 use crate::eco::explorer::{BagContent, Explorer};
 use crate::eco::planner::Action;
@@ -11,7 +13,6 @@ use crate::eco::regime::EconomyRegime;
 use crate::eco::time::CYCLES_PER_DAY;
 use common_game::components::resource::BasicResourceType as B;
 use std::collections::HashSet;
-
 
 struct Rig {
     explorer: Explorer,
@@ -56,7 +57,10 @@ fn five_steps_make_one_day_and_credit_income() {
     // so the only wallet change is one Neutral day of income.
     assert_eq!(r.explorer.clock.day, 2);
 
-    assert_eq!(r.explorer.wallet.coins, STARTING_COINS + i64::from(n.daily_income));
+    assert_eq!(
+        r.explorer.wallet.coins,
+        STARTING_COINS + i64::from(n.daily_income)
+    );
 }
 
 #[test]
@@ -93,11 +97,14 @@ fn a_silent_orchestrator_gets_one_neighbors_request_not_one_per_step() {
 fn waiting_for_a_reply_changes_neither_the_clock_nor_the_wallet() {
     // Same arithmetic as the 5-step test, over two days while a request is pending.
     let mut r = rig();
-    for _ in 0..(2*CYCLES_PER_DAY) {
+    for _ in 0..(2 * CYCLES_PER_DAY) {
         r.explorer.ai_step();
     }
     let n = EconomyRegime::Neutral.costs();
-    assert_eq!(r.explorer.wallet.coins, STARTING_COINS + 2 * i64::from(n.daily_income));
+    assert_eq!(
+        r.explorer.wallet.coins,
+        STARTING_COINS + 2 * i64::from(n.daily_income)
+    );
     assert_eq!(r.explorer.clock.day, 3);
     assert_eq!(r.explorer.clock.cycle_in_day, 0);
 }
@@ -106,9 +113,14 @@ fn waiting_for_a_reply_changes_neither_the_clock_nor_the_wallet() {
 fn a_neighbors_response_clears_the_pending_request() {
     let mut r = rig();
     r.explorer.execute(Action::RequestNeighbors);
-    assert!(matches!(r.explorer.comms.pending, crate::eco::comms::Pending::Neighbors { .. }));
+    assert!(matches!(
+        r.explorer.comms.pending,
+        crate::eco::comms::Pending::Neighbors { .. }
+    ));
     r.explorer
-        .handle_orchestrator_message(OrchestratorToExplorer::NeighborsResponse { neighbors: vec![] });
+        .handle_orchestrator_message(OrchestratorToExplorer::NeighborsResponse {
+            neighbors: vec![],
+        });
     assert_eq!(r.explorer.comms.pending, crate::eco::comms::Pending::Idle);
 }
 
@@ -116,12 +128,16 @@ fn a_neighbors_response_clears_the_pending_request() {
 fn a_move_to_planet_clears_a_pending_travel() {
     let mut r = rig();
     r.explorer.execute(Action::Move(7));
-    assert!(matches!(r.explorer.comms.pending, crate::eco::comms::Pending::Travel { .. }));
+    assert!(matches!(
+        r.explorer.comms.pending,
+        crate::eco::comms::Pending::Travel { .. }
+    ));
     let (tx, _rx) = unbounded::<ExplorerToPlanet>();
-    r.explorer.handle_orchestrator_message(OrchestratorToExplorer::MoveToPlanet {
-        sender_to_new_planet: Some(tx),
-        planet_id: 7,
-    });
+    r.explorer
+        .handle_orchestrator_message(OrchestratorToExplorer::MoveToPlanet {
+            sender_to_new_planet: Some(tx),
+            planet_id: 7,
+        });
     assert_eq!(r.explorer.comms.pending, crate::eco::comms::Pending::Idle);
     assert_eq!(r.explorer.current_planet_id, 7);
 }
@@ -130,25 +146,28 @@ fn a_move_to_planet_clears_a_pending_travel() {
 fn a_failed_mine_starts_a_cooldown() {
     // The rig's planet never answers, so the mine fails after the 2 s reply timeout.
     let mut r = rig();
-    r.explorer
-        .execute(Action::Mine(common_game::components::resource::BasicResourceType::Carbon));
+    r.explorer.execute(Action::Mine(
+        common_game::components::resource::BasicResourceType::Carbon,
+    ));
     assert!(!r.explorer.comms.may_act(std::time::Instant::now()));
     assert_eq!(r.explorer.wallet.coins, STARTING_COINS); // a failed mine costs nothing
 }
 
 fn accept_move(r: &mut Rig, to: u32) {
     let (tx, _rx) = unbounded::<ExplorerToPlanet>();
-    r.explorer.handle_orchestrator_message(OrchestratorToExplorer::MoveToPlanet {
-        sender_to_new_planet: Some(tx),
-        planet_id: to,
-    });
+    r.explorer
+        .handle_orchestrator_message(OrchestratorToExplorer::MoveToPlanet {
+            sender_to_new_planet: Some(tx),
+            planet_id: to,
+        });
 }
 
 fn refuse_move(r: &mut Rig, to: u32) {
-    r.explorer.handle_orchestrator_message(OrchestratorToExplorer::MoveToPlanet {
-        sender_to_new_planet: None,
-        planet_id: to,
-    });
+    r.explorer
+        .handle_orchestrator_message(OrchestratorToExplorer::MoveToPlanet {
+            sender_to_new_planet: None,
+            planet_id: to,
+        });
 }
 
 #[test]
@@ -158,7 +177,10 @@ fn requesting_a_move_is_free() {
     assert_eq!(r.explorer.wallet.coins, STARTING_COINS);
     assert!(matches!(
         r.from_explorer.try_recv(),
-        Ok(ExplorerToOrchestrator::TravelToPlanetRequest { dst_planet_id: 7, .. })
+        Ok(ExplorerToOrchestrator::TravelToPlanetRequest {
+            dst_planet_id: 7,
+            ..
+        })
     ));
 }
 
@@ -200,7 +222,10 @@ fn a_refusal_about_another_planet_leaves_the_pending_request_alone() {
     let mut r = rig();
     r.explorer.execute(Action::Move(7));
     refuse_move(&mut r, 9);
-    assert!(matches!(r.explorer.comms.pending, crate::eco::comms::Pending::Travel { to: 7, .. }));
+    assert!(matches!(
+        r.explorer.comms.pending,
+        crate::eco::comms::Pending::Travel { to: 7, .. }
+    ));
 }
 
 #[test]
@@ -219,7 +244,9 @@ fn neighbors_are_recorded_for_the_planet_that_was_asked_not_the_one_we_are_on() 
     r.explorer.execute(Action::RequestNeighbors); // asked while on planet 100
     accept_move(&mut r, 7); // the orchestrator moved us before it answered
     r.explorer
-        .handle_orchestrator_message(OrchestratorToExplorer::NeighborsResponse { neighbors: vec![1, 2] });
+        .handle_orchestrator_message(OrchestratorToExplorer::NeighborsResponse {
+            neighbors: vec![1, 2],
+        });
     assert_eq!(r.explorer.world.neighbors.get(&100), Some(&vec![1, 2]));
     assert!(!r.explorer.world.neighbors.contains_key(&7));
 }
@@ -228,7 +255,9 @@ fn neighbors_are_recorded_for_the_planet_that_was_asked_not_the_one_we_are_on() 
 fn an_unsolicited_neighbors_response_is_ignored() {
     let mut r = rig();
     r.explorer
-        .handle_orchestrator_message(OrchestratorToExplorer::NeighborsResponse { neighbors: vec![1, 2] });
+        .handle_orchestrator_message(OrchestratorToExplorer::NeighborsResponse {
+            neighbors: vec![1, 2],
+        });
     assert!(r.explorer.world.neighbors.is_empty());
 }
 
@@ -248,13 +277,17 @@ fn a_destination_missing_from_the_refreshed_list_is_forgotten() {
     r.explorer.world.record_neighbors(100, vec![7, 8]);
     r.explorer.world.record_resources(
         7,
-        std::collections::HashSet::from([common_game::components::resource::BasicResourceType::Carbon]),
+        std::collections::HashSet::from([
+            common_game::components::resource::BasicResourceType::Carbon,
+        ]),
     );
     r.explorer.execute(Action::Move(7));
     refuse_move(&mut r, 7);
     r.explorer.execute(Action::RequestNeighbors); // exits unknown again, so this asks
     r.explorer
-        .handle_orchestrator_message(OrchestratorToExplorer::NeighborsResponse { neighbors: vec![8] });
+        .handle_orchestrator_message(OrchestratorToExplorer::NeighborsResponse {
+            neighbors: vec![8],
+        });
     assert_eq!(r.explorer.world.neighbors.get(&100), Some(&vec![8]));
     assert!(!r.explorer.world.resources.contains_key(&7));
 }
@@ -267,7 +300,10 @@ fn a_travel_request_that_times_out_invalidates_the_exits() {
     let long_ago = std::time::Instant::now()
         .checked_sub(crate::eco::comms::PENDING_TIMEOUT + std::time::Duration::from_secs(1))
         .unwrap();
-    r.explorer.comms.pending = crate::eco::comms::Pending::Travel { to: 7, since: long_ago };
+    r.explorer.comms.pending = crate::eco::comms::Pending::Travel {
+        to: 7,
+        since: long_ago,
+    };
     r.explorer.ai_step();
     assert!(!r.explorer.world.neighbors.contains_key(&100));
     assert_eq!(r.explorer.comms.pending, crate::eco::comms::Pending::Idle);
@@ -279,14 +315,21 @@ fn an_exhausted_frontier_idles_for_free_instead_of_asking_again() {
     let mut r = rig();
     r.explorer.task = Some(ComplexResourceType::Water);
     // Everything known about planet 100, and nowhere left to explore.
-    r.explorer.world.record_resources(100, std::collections::HashSet::new());
-    r.explorer.world.record_combos(100, std::collections::HashSet::new());
+    r.explorer
+        .world
+        .record_resources(100, std::collections::HashSet::new());
+    r.explorer
+        .world
+        .record_combos(100, std::collections::HashSet::new());
     r.explorer.world.record_neighbors(100, vec![]);
     for _ in 0..CYCLES_PER_DAY {
         r.explorer.ai_step();
     }
     assert!(r.from_explorer.try_recv().is_err()); // nothing was sent
-    assert_eq!(r.explorer.wallet.coins, STARTING_COINS + i64::from(n.daily_income)); // one day of income, no charges
+    assert_eq!(
+        r.explorer.wallet.coins,
+        STARTING_COINS + i64::from(n.daily_income)
+    ); // one day of income, no charges
     assert_eq!(r.explorer.comms.pending, crate::eco::comms::Pending::Idle);
 }
 
@@ -297,10 +340,13 @@ fn reset_forgets_the_galaxy_but_keeps_ecos_own_life() {
     r.explorer.wallet.coins = 77;
     r.explorer.clock.day = 4;
     r.explorer.world.record_neighbors(100, vec![7]);
-    r.explorer.world.record_resources(100, std::collections::HashSet::new());
+    r.explorer
+        .world
+        .record_resources(100, std::collections::HashSet::new());
     r.explorer.execute(Action::Move(7)); // leaves a travel request pending
 
-    r.explorer.handle_orchestrator_message(OrchestratorToExplorer::ResetExplorerAI);
+    r.explorer
+        .handle_orchestrator_message(OrchestratorToExplorer::ResetExplorerAI);
 
     assert!(r.explorer.ai_active);
     assert_eq!(r.explorer.task, Some(ComplexResourceType::Water));
@@ -308,38 +354,47 @@ fn reset_forgets_the_galaxy_but_keeps_ecos_own_life() {
     assert_eq!(r.explorer.clock.day, 4);
     assert!(r.explorer.world.neighbors.is_empty());
     assert!(r.explorer.world.resources.is_empty());
-    assert_eq!(r.explorer.world.visited, std::collections::HashSet::from([100]));
+    assert_eq!(
+        r.explorer.world.visited,
+        std::collections::HashSet::from([100])
+    );
     assert_eq!(r.explorer.comms.pending, crate::eco::comms::Pending::Idle);
     assert!(r.explorer.comms.may_act(std::time::Instant::now()));
-    assert!(r
-        .from_explorer
-        .try_iter()
-        .any(|m| matches!(m, ExplorerToOrchestrator::ResetExplorerAIResult { .. })));
+    assert!(
+        r.from_explorer
+            .try_iter()
+            .any(|m| matches!(m, ExplorerToOrchestrator::ResetExplorerAIResult { .. }))
+    );
 }
 
 #[test]
 fn reset_restarts_a_stopped_ai_and_leaves_a_running_one_running() {
     let mut r = rig();
     assert!(!r.explorer.ai_active); // manual mode at start
-    r.explorer.handle_orchestrator_message(OrchestratorToExplorer::ResetExplorerAI);
+    r.explorer
+        .handle_orchestrator_message(OrchestratorToExplorer::ResetExplorerAI);
     assert!(r.explorer.ai_active);
-    r.explorer.handle_orchestrator_message(OrchestratorToExplorer::ResetExplorerAI);
+    r.explorer
+        .handle_orchestrator_message(OrchestratorToExplorer::ResetExplorerAI);
     assert!(r.explorer.ai_active);
 }
 
 #[test]
 fn stop_enters_manual_mode_and_drops_pending_requests() {
     let mut r = rig();
-    r.explorer.handle_orchestrator_message(OrchestratorToExplorer::StartExplorerAI);
+    r.explorer
+        .handle_orchestrator_message(OrchestratorToExplorer::StartExplorerAI);
     assert!(r.explorer.ai_active);
     r.explorer.execute(Action::RequestNeighbors); // pending neighbors request
-    r.explorer.handle_orchestrator_message(OrchestratorToExplorer::StopExplorerAI);
+    r.explorer
+        .handle_orchestrator_message(OrchestratorToExplorer::StopExplorerAI);
     assert!(!r.explorer.ai_active);
     assert_eq!(r.explorer.comms.pending, crate::eco::comms::Pending::Idle);
-    assert!(r
-        .from_explorer
-        .try_iter()
-        .any(|m| matches!(m, ExplorerToOrchestrator::StopExplorerAIResult { .. })));
+    assert!(
+        r.from_explorer
+            .try_iter()
+            .any(|m| matches!(m, ExplorerToOrchestrator::StopExplorerAIResult { .. }))
+    );
 }
 
 #[test]
@@ -349,8 +404,12 @@ fn an_impossible_task_is_swapped_for_one_the_galaxy_can_deliver() {
     let mut r = rig();
     r.explorer.task = Some(ComplexResourceType::Robot); // needs Silicon: nobody supplies it
     // The whole known galaxy is planet 100: Carbon, and it can make Diamond.
-    r.explorer.world.record_resources(100, HashSet::from([B::Carbon]));
-    r.explorer.world.record_combos(100, HashSet::from([ComplexResourceType::Diamond]));
+    r.explorer
+        .world
+        .record_resources(100, HashSet::from([B::Carbon]));
+    r.explorer
+        .world
+        .record_combos(100, HashSet::from([ComplexResourceType::Diamond]));
     r.explorer.world.record_neighbors(100, vec![]);
     r.explorer.ai_step();
     assert_eq!(r.explorer.task, Some(ComplexResourceType::Diamond));
@@ -362,14 +421,16 @@ fn a_task_is_kept_while_there_is_still_something_to_explore() {
     use std::collections::HashSet;
     let mut r = rig();
     r.explorer.task = Some(ComplexResourceType::Robot);
-    r.explorer.world.record_resources(100, HashSet::from([B::Carbon]));
-    r.explorer.world.record_combos(100, HashSet::from([ComplexResourceType::Diamond]));
+    r.explorer
+        .world
+        .record_resources(100, HashSet::from([B::Carbon]));
+    r.explorer
+        .world
+        .record_combos(100, HashSet::from([ComplexResourceType::Diamond]));
     r.explorer.world.record_neighbors(100, vec![5]); // planet 5 was never visited
     r.explorer.ai_step();
     assert_eq!(r.explorer.task, Some(ComplexResourceType::Robot));
 }
-
-
 
 #[test]
 fn can_afford_compares_the_balance_with_the_price_in_force() {
@@ -387,8 +448,12 @@ fn can_afford_compares_the_balance_with_the_price_in_force() {
 fn a_poor_eco_waits_instead_of_acting() {
     let mut r = rig();
     r.explorer.task = Some(ComplexResourceType::Diamond);
-    r.explorer.world.record_resources(100, HashSet::from([B::Carbon]));
-    r.explorer.world.record_combos(100, HashSet::from([ComplexResourceType::Diamond]));
+    r.explorer
+        .world
+        .record_resources(100, HashSet::from([B::Carbon]));
+    r.explorer
+        .world
+        .record_combos(100, HashSet::from([ComplexResourceType::Diamond]));
     r.explorer.world.record_neighbors(100, vec![]);
     r.explorer.wallet.coins = 0; // the planner wants Mine(Carbon), which costs 4
     r.explorer.ai_step();
@@ -428,8 +493,12 @@ fn status_copies_the_current_state() {
 fn status_shows_that_a_poor_eco_is_waiting() {
     let mut r = rig();
     r.explorer.task = Some(ComplexResourceType::Diamond);
-    r.explorer.world.record_resources(100, HashSet::from([B::Carbon]));
-    r.explorer.world.record_combos(100, HashSet::from([ComplexResourceType::Diamond]));
+    r.explorer
+        .world
+        .record_resources(100, HashSet::from([B::Carbon]));
+    r.explorer
+        .world
+        .record_combos(100, HashSet::from([ComplexResourceType::Diamond]));
     r.explorer.world.record_neighbors(100, vec![]);
     r.explorer.wallet.coins = 0;
     r.explorer.ai_step();

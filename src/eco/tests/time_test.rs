@@ -1,7 +1,7 @@
 use crate::eco::regime::EconomyRegime;
-use crate::eco::time::{EconomyClock, CYCLES_PER_DAY, FLOURISH_DAYS_RANGE, RECESSION_DAYS_RANGE};
-use rand::rngs::StdRng;
+use crate::eco::time::{CYCLES_PER_DAY, EconomyClock, FLOURISH_DAYS_RANGE, RECESSION_DAYS_RANGE};
 use rand::SeedableRng;
+use rand::rngs::StdRng;
 
 #[test]
 fn new_clock_starts_day_one_neutral() {
@@ -12,14 +12,16 @@ fn new_clock_starts_day_one_neutral() {
     assert_eq!(c.days_left_in_regime, 5);
 }
 
-
 #[test]
 fn neutral_lasts_five_days_then_flourish() {
     let mut rng = StdRng::seed_from_u64(2);
     let mut c = EconomyClock::new();
     let neutral_cycles = 5 * usize::from(CYCLES_PER_DAY);
     for tick in 1..neutral_cycles {
-        assert!(c.tick(&mut rng).is_none(), "unexpected transition at tick {tick}");
+        assert!(
+            c.tick(&mut rng).is_none(),
+            "unexpected transition at tick {tick}"
+        );
     }
     assert_eq!(c.regime, EconomyRegime::Neutral);
     assert_eq!(c.tick(&mut rng), Some((EconomyRegime::Neutral, 5))); // the last Neutral tick

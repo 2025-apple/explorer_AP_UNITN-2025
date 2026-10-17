@@ -83,10 +83,12 @@ impl RegimeEstimator {
         let x = days_lasted as f64;
         match regime {
             EconomyRegime::Flourish => {
-                self.ema_flourish_days = self.alpha * x + (1.0 - self.alpha) * self.ema_flourish_days;
+                self.ema_flourish_days =
+                    self.alpha * x + (1.0 - self.alpha) * self.ema_flourish_days;
             }
             EconomyRegime::Recession => {
-                self.ema_recession_days = self.alpha * x + (1.0 - self.alpha) * self.ema_recession_days;
+                self.ema_recession_days =
+                    self.alpha * x + (1.0 - self.alpha) * self.ema_recession_days;
             }
             EconomyRegime::Neutral => {}
         }
@@ -127,10 +129,13 @@ pub enum ForecastMode<'a> {
 impl<'a> ForecastMode<'a> {
     pub(super) fn days_left_estimate(&self, regime: EconomyRegime) -> f64 {
         match self {
-            ForecastMode::Blind { estimator, days_spent_in_regime } => {
-                estimator.estimate_days_left(regime, *days_spent_in_regime)
-            }
-            ForecastMode::Oracle { days_left_in_regime } => *days_left_in_regime as f64,
+            ForecastMode::Blind {
+                estimator,
+                days_spent_in_regime,
+            } => estimator.estimate_days_left(regime, *days_spent_in_regime),
+            ForecastMode::Oracle {
+                days_left_in_regime,
+            } => *days_left_in_regime as f64,
         }
     }
 }

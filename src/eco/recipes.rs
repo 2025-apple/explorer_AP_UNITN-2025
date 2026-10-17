@@ -45,7 +45,6 @@ pub fn remaining_work(
     out
 }
 
-
 /// Top-down: use a held unit if there is one, otherwise plan to build it.
 fn allocate(
     target: ComplexResourceType,
@@ -88,8 +87,12 @@ pub fn is_step_ready(
             Ingredient::Complex(ct) => *need_complex.entry(ct).or_insert(0) += 1,
         }
     }
-    need_basic.iter().all(|(bt, n)| bag_basics.get(bt).copied().unwrap_or(0) >= *n)
-        && need_complex.iter().all(|(ct, n)| bag_complex.get(ct).copied().unwrap_or(0) >= *n)
+    need_basic
+        .iter()
+        .all(|(bt, n)| bag_basics.get(bt).copied().unwrap_or(0) >= *n)
+        && need_complex
+            .iter()
+            .all(|(ct, n)| bag_complex.get(ct).copied().unwrap_or(0) >= *n)
 }
 
 /// The six buildable complex resources — used for picking a random task.

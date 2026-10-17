@@ -1,3 +1,5 @@
 mod eco;
 
-pub use eco::{create_explorer, create_explorer_oracle, BagContent, EcoStatus, Explorer,StatusSink};
+pub use eco::{
+    BagContent, EcoStatus, Explorer, StatusSink, create_explorer, create_explorer_oracle,
+};

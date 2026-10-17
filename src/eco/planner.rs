@@ -8,8 +8,8 @@ use std::collections::HashMap;
 use common_game::components::resource::{BasicResourceType, ComplexResourceType};
 use common_game::utils::ID;
 
-
-use super::recipes::{is_step_ready, remaining_work};use super::regime::{CostTable, EconomyRegime, ForecastMode};
+use super::recipes::{is_step_ready, remaining_work};
+use super::regime::{CostTable, EconomyRegime, ForecastMode};
 use super::time::CYCLES_PER_DAY;
 use super::world::WorldModel;
 
@@ -65,8 +65,18 @@ impl Planner {
             .iter()
             .find(|&&s| is_step_ready(s, bag_basics, bag_complex))
         {
-            if world.combos.get(&current_planet).is_some_and(|s| s.contains(&step)) {
-                return Self::maybe_wait(Action::Combine(step), costs.combine, regime, costs.stay, forecast);
+            if world
+                .combos
+                .get(&current_planet)
+                .is_some_and(|s| s.contains(&step))
+            {
+                return Self::maybe_wait(
+                    Action::Combine(step),
+                    costs.combine,
+                    regime,
+                    costs.stay,
+                    forecast,
+                );
             }
             return match world.nearest_known_combo_planet(current_planet, step) {
                 Some(path) => Self::step_along(path, regime, costs, forecast),
@@ -83,7 +93,13 @@ impl Planner {
                 .iter()
                 .find(|b| here.is_some_and(|s| s.contains(b)))
             {
-                return Self::maybe_wait(Action::Mine(missing), costs.mine, regime, costs.stay, forecast);
+                return Self::maybe_wait(
+                    Action::Mine(missing),
+                    costs.mine,
+                    regime,
+                    costs.stay,
+                    forecast,
+                );
             }
             // 2b. Otherwise walk to the nearest known planet that supplies any of them.
             let nearest = remaining
@@ -100,20 +116,30 @@ impl Planner {
         Action::Stay
     }
 
-
     /// First hop of a known BFS path, subject to the wait-vs-act check.
     /// `Stay` if we're already at the destination (path of length 1).
-    fn step_along(path: Vec<ID>, regime: EconomyRegime, costs: CostTable, forecast: &ForecastMode) -> Action {
+    fn step_along(
+        path: Vec<ID>,
+        regime: EconomyRegime,
+        costs: CostTable,
+        forecast: &ForecastMode,
+    ) -> Action {
         if path.len() <= 1 {
             return Action::Stay;
         }
-        Self::maybe_wait(Action::Move(path[1]), costs.mv, regime, costs.stay, forecast)
+        Self::maybe_wait(
+            Action::Move(path[1]),
+            costs.mv,
+            regime,
+            costs.stay,
+            forecast,
+        )
     }
 
     fn explore_or_request(current_planet: ID, world: &WorldModel) -> Action {
         match world.neighbors.get(&current_planet) {
             None => Action::RequestNeighbors,
-            Some(_) => match world.nearest_unexplored(current_planet){
+            Some(_) => match world.nearest_unexplored(current_planet) {
                 Some(path) if path.len() > 1 => Action::ExploreTowards(path[1]),
                 _ => Action::RequestNeighbors, // known frontier exhausted — ask again
             },

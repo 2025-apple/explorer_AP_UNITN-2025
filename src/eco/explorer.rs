@@ -21,15 +21,15 @@ use common_game::protocols::planet_explorer::{
 use common_game::utils::ID;
 
 use super::bag::Bag;
+use super::comms::{Comms, Pending};
 use super::logging;
 use super::planner::{Action, Planner};
+use super::recipes::task_pool;
 use super::regime::{ForecastMode, RegimeEstimator};
+use super::status::{EcoStatus, StatusSink};
 use super::time::EconomyClock;
 use super::wallet::Wallet;
 use super::world::WorldModel;
-use super::comms::{Comms,Pending};
-use super::recipes::task_pool;
-use super::status::{EcoStatus, StatusSink};
 /// Eco's bag report: resource type and how many.
 pub type BagContent = Vec<(ResourceType, usize)>;
 
@@ -44,7 +44,15 @@ pub fn create_explorer(
 ) -> Explorer {
     // Blind mode by default — the realistic, harder AI behavior. Use
     // `create_explorer_oracle` for a baseline/testing build.
-    Explorer::new(explorer_id, starting_planet_id, rx_orchestrator, tx_orchestrator, rx_planet, tx_planet, true)
+    Explorer::new(
+        explorer_id,
+        starting_planet_id,
+        rx_orchestrator,
+        tx_orchestrator,
+        rx_planet,
+        tx_planet,
+        true,
+    )
 }
 
 #[must_use]
@@ -56,7 +64,15 @@ pub fn create_explorer_oracle(
     rx_planet: Receiver<PlanetToExplorer>,
     tx_planet: Sender<ExplorerToPlanet>,
 ) -> Explorer {
-    Explorer::new(explorer_id, starting_planet_id, rx_orchestrator, tx_orchestrator, rx_planet, tx_planet, false)
+    Explorer::new(
+        explorer_id,
+        starting_planet_id,
+        rx_orchestrator,
+        tx_orchestrator,
+        rx_planet,
+        tx_planet,
+        false,
+    )
 }
 
 /// Eco's link to whichever planet it's currently on. `None` until the
@@ -101,11 +117,21 @@ impl PlanetError {
 /// Which reply kind answers which request kind.
 fn reply_kind(request: ExplorerToPlanetKind) -> PlanetToExplorerKind {
     match request {
-        ExplorerToPlanetKind::SupportedResourceRequest => PlanetToExplorerKind::SupportedResourceResponse,
-        ExplorerToPlanetKind::SupportedCombinationRequest => PlanetToExplorerKind::SupportedCombinationResponse,
-        ExplorerToPlanetKind::GenerateResourceRequest => PlanetToExplorerKind::GenerateResourceResponse,
-        ExplorerToPlanetKind::CombineResourceRequest => PlanetToExplorerKind::CombineResourceResponse,
-        ExplorerToPlanetKind::AvailableEnergyCellRequest => PlanetToExplorerKind::AvailableEnergyCellResponse,
+        ExplorerToPlanetKind::SupportedResourceRequest => {
+            PlanetToExplorerKind::SupportedResourceResponse
+        }
+        ExplorerToPlanetKind::SupportedCombinationRequest => {
+            PlanetToExplorerKind::SupportedCombinationResponse
+        }
+        ExplorerToPlanetKind::GenerateResourceRequest => {
+            PlanetToExplorerKind::GenerateResourceResponse
+        }
+        ExplorerToPlanetKind::CombineResourceRequest => {
+            PlanetToExplorerKind::CombineResourceResponse
+        }
+        ExplorerToPlanetKind::AvailableEnergyCellRequest => {
+            PlanetToExplorerKind::AvailableEnergyCellResponse
+        }
     }
 }
 
@@ -175,7 +201,6 @@ impl Explorer {
             waiting_for_income: false,
             status_sink: None,
             decision: None,
-
         }
     }
 
@@ -196,10 +221,12 @@ impl Explorer {
 
     /// Main loop. Call this from the thread the orchestrator's `main.rs` spawns.
     pub fn run(mut self) {
-        let _ = self.to_orchestrator.send(ExplorerToOrchestrator::CurrentPlanetResult {
-            explorer_id: self.id,
-            planet_id: self.current_planet_id,
-        });
+        let _ = self
+            .to_orchestrator
+            .send(ExplorerToOrchestrator::CurrentPlanetResult {
+                explorer_id: self.id,
+                planet_id: self.current_planet_id,
+            });
 
         while !self.should_stop {
             loop {
@@ -237,24 +264,30 @@ impl Explorer {
             OrchestratorToExplorer::KillExplorer => {
                 logging::kill_received(self.id);
                 self.should_stop = true;
-                let _ = self.to_orchestrator.send(
-                    ExplorerToOrchestrator::KillExplorerResult { explorer_id: self.id },
-                );
+                let _ = self
+                    .to_orchestrator
+                    .send(ExplorerToOrchestrator::KillExplorerResult {
+                        explorer_id: self.id,
+                    });
             }
 
             OrchestratorToExplorer::StartExplorerAI => {
                 self.ai_active = true;
-                let _ = self.to_orchestrator.send(
-                    ExplorerToOrchestrator::StartExplorerAIResult { explorer_id: self.id },
-                );
+                let _ = self
+                    .to_orchestrator
+                    .send(ExplorerToOrchestrator::StartExplorerAIResult {
+                        explorer_id: self.id,
+                    });
             }
 
             OrchestratorToExplorer::StopExplorerAI => {
                 self.ai_active = false;
                 self.comms.reset();
-                let _ = self.to_orchestrator.send(
-                    ExplorerToOrchestrator::StopExplorerAIResult { explorer_id: self.id },
-                );
+                let _ = self
+                    .to_orchestrator
+                    .send(ExplorerToOrchestrator::StopExplorerAIResult {
+                        explorer_id: self.id,
+                    });
             }
 
             OrchestratorToExplorer::ResetExplorerAI => {
@@ -265,14 +298,19 @@ impl Explorer {
                 self.world.visited.insert(self.current_planet_id);
                 self.comms.reset();
                 self.ai_active = true;
-                self.waiting_for_income=false;
+                self.waiting_for_income = false;
                 self.decision = None;
-                let _ = self.to_orchestrator.send(
-                    ExplorerToOrchestrator::ResetExplorerAIResult { explorer_id: self.id },
-                );
+                let _ = self
+                    .to_orchestrator
+                    .send(ExplorerToOrchestrator::ResetExplorerAIResult {
+                        explorer_id: self.id,
+                    });
             }
 
-            OrchestratorToExplorer::MoveToPlanet { sender_to_new_planet, planet_id } => {
+            OrchestratorToExplorer::MoveToPlanet {
+                sender_to_new_planet,
+                planet_id,
+            } => {
                 match sender_to_new_planet {
                     Some(new_to_planet) => {
                         logging::moved_to_planet(self.id, planet_id);
@@ -303,49 +341,61 @@ impl Explorer {
                     }
                 }
 
-                let _ = self.to_orchestrator.send(ExplorerToOrchestrator::MovedToPlanetResult {
-                    explorer_id: self.id,
-                    planet_id: self.current_planet_id,
-                });
+                let _ = self
+                    .to_orchestrator
+                    .send(ExplorerToOrchestrator::MovedToPlanetResult {
+                        explorer_id: self.id,
+                        planet_id: self.current_planet_id,
+                    });
             }
 
             OrchestratorToExplorer::CurrentPlanetRequest => {
-                let _ = self.to_orchestrator.send(ExplorerToOrchestrator::CurrentPlanetResult {
-                    explorer_id: self.id,
-                    planet_id: self.current_planet_id,
-                });
+                let _ = self
+                    .to_orchestrator
+                    .send(ExplorerToOrchestrator::CurrentPlanetResult {
+                        explorer_id: self.id,
+                        planet_id: self.current_planet_id,
+                    });
             }
 
             OrchestratorToExplorer::SupportedResourceRequest => {
                 let supported_resources = self.query_supported_resources().unwrap_or_default();
-                let _ = self.to_orchestrator.send(ExplorerToOrchestrator::SupportedResourceResult {
-                    explorer_id: self.id,
-                    supported_resources,
-                });
+                let _ =
+                    self.to_orchestrator
+                        .send(ExplorerToOrchestrator::SupportedResourceResult {
+                            explorer_id: self.id,
+                            supported_resources,
+                        });
             }
 
             OrchestratorToExplorer::SupportedCombinationRequest => {
                 let combination_list = self.query_supported_combinations().unwrap_or_default();
-                let _ = self.to_orchestrator.send(ExplorerToOrchestrator::SupportedCombinationResult {
-                    explorer_id: self.id,
-                    combination_list,
-                });
+                let _ =
+                    self.to_orchestrator
+                        .send(ExplorerToOrchestrator::SupportedCombinationResult {
+                            explorer_id: self.id,
+                            combination_list,
+                        });
             }
 
             OrchestratorToExplorer::GenerateResourceRequest { to_generate } => {
                 let generated = self.request_generate_resource(to_generate);
-                let _ = self.to_orchestrator.send(ExplorerToOrchestrator::GenerateResourceResponse {
-                    explorer_id: self.id,
-                    generated,
-                });
+                let _ =
+                    self.to_orchestrator
+                        .send(ExplorerToOrchestrator::GenerateResourceResponse {
+                            explorer_id: self.id,
+                            generated,
+                        });
             }
 
             OrchestratorToExplorer::CombineResourceRequest { to_generate } => {
                 let generated = self.request_combine_resource(to_generate);
-                let _ = self.to_orchestrator.send(ExplorerToOrchestrator::CombineResourceResponse {
-                    explorer_id: self.id,
-                    generated,
-                });
+                let _ =
+                    self.to_orchestrator
+                        .send(ExplorerToOrchestrator::CombineResourceResponse {
+                            explorer_id: self.id,
+                            generated,
+                        });
             }
 
             OrchestratorToExplorer::NeighborsResponse { neighbors } => {
@@ -358,12 +408,13 @@ impl Explorer {
                 }
             }
 
-
             OrchestratorToExplorer::BagContentRequest => {
-                let _ = self.to_orchestrator.send(ExplorerToOrchestrator::BagContentResponse {
-                    explorer_id: self.id,
-                    bag_content: self.bag.contents(),
-                });
+                let _ = self
+                    .to_orchestrator
+                    .send(ExplorerToOrchestrator::BagContentResponse {
+                        explorer_id: self.id,
+                        bag_content: self.bag.contents(),
+                    });
             }
 
             _ => {
@@ -374,13 +425,10 @@ impl Explorer {
 
     // ==================== Explorer -> Planet ====================
 
-
-
     /// Builds the `ComplexResourceRequest` for a target type by pulling
     /// matching ingredient resources out of the bag. Puts back whatever
     /// it already took if the full recipe isn't available, so nothing is
     /// lost on failure. (Unchanged from the skeleton.)
-
 
     /// The ONE place Eco talks to a planet. Sends `msg`, then waits up to
     /// PLANET_REPLY_TIMEOUT for the reply that answers it.
@@ -409,7 +457,10 @@ impl Explorer {
                     return Err(PlanetError::Stopped);
                 }
                 Ok(reply) if PlanetToExplorerKind::from(&reply) == wanted => return Ok(reply),
-                Ok(_) => log::debug!("explorer {}: discarded a reply that answers no pending request", self.id),
+                Ok(_) => log::debug!(
+                    "explorer {}: discarded a reply that answers no pending request",
+                    self.id
+                ),
                 Err(RecvTimeoutError::Timeout) => {
                     log::warn!("explorer {}: planet did not reply in time", self.id);
                     return Err(PlanetError::NoReply);
@@ -427,28 +478,37 @@ impl Explorer {
     pub(super) fn query_supported_resources(
         &mut self,
     ) -> Result<std::collections::HashSet<BasicResourceType>, PlanetError> {
-        let reply = self.request_planet(ExplorerToPlanet::SupportedResourceRequest { explorer_id: self.id })?;
+        let reply = self.request_planet(ExplorerToPlanet::SupportedResourceRequest {
+            explorer_id: self.id,
+        })?;
         let PlanetToExplorer::SupportedResourceResponse { resource_list } = reply else {
             return Err(PlanetError::NoReply);
         };
-        self.world.record_resources(self.current_planet_id, resource_list.clone());
+        self.world
+            .record_resources(self.current_planet_id, resource_list.clone());
         Ok(resource_list)
     }
 
     pub(super) fn query_supported_combinations(
         &mut self,
     ) -> Result<std::collections::HashSet<ComplexResourceType>, PlanetError> {
-        let reply = self.request_planet(ExplorerToPlanet::SupportedCombinationRequest { explorer_id: self.id })?;
+        let reply = self.request_planet(ExplorerToPlanet::SupportedCombinationRequest {
+            explorer_id: self.id,
+        })?;
         let PlanetToExplorer::SupportedCombinationResponse { combination_list } = reply else {
             return Err(PlanetError::NoReply);
         };
-        self.world.record_combos(self.current_planet_id, combination_list.clone());
+        self.world
+            .record_combos(self.current_planet_id, combination_list.clone());
         Ok(combination_list)
     }
 
     fn request_generate_resource(&mut self, resource: BasicResourceType) -> Result<(), String> {
         let reply = self
-            .request_planet(ExplorerToPlanet::GenerateResourceRequest { explorer_id: self.id, resource })
+            .request_planet(ExplorerToPlanet::GenerateResourceRequest {
+                explorer_id: self.id,
+                resource,
+            })
             .map_err(|e| e.describe().to_string())?;
         match reply {
             PlanetToExplorer::GenerateResourceResponse { resource: Some(r) } => {
@@ -470,14 +530,22 @@ impl Explorer {
         let msg = self.build_combine_request(to_generate)?;
 
         let reply = self
-            .request_planet(ExplorerToPlanet::CombineResourceRequest { explorer_id: self.id, msg })
+            .request_planet(ExplorerToPlanet::CombineResourceRequest {
+                explorer_id: self.id,
+                msg,
+            })
             .map_err(|e| e.describe().to_string())?;
         match reply {
-            PlanetToExplorer::CombineResourceResponse { complex_response: Ok(complex_resource) } => {
-                self.bag.put_back(GenericResource::ComplexResources(complex_resource));
+            PlanetToExplorer::CombineResourceResponse {
+                complex_response: Ok(complex_resource),
+            } => {
+                self.bag
+                    .put_back(GenericResource::ComplexResources(complex_resource));
                 Ok(())
             }
-            PlanetToExplorer::CombineResourceResponse { complex_response: Err((reason, r1, r2)) } => {
+            PlanetToExplorer::CombineResourceResponse {
+                complex_response: Err((reason, r1, r2)),
+            } => {
                 self.bag.put_back(r1);
                 self.bag.put_back(r2);
                 Err(reason)
@@ -489,91 +557,106 @@ impl Explorer {
     /// "Energy Cell Availability" — explorer-initiated only, no
     /// orchestrator involvement in the real protocol.
     pub fn query_available_energy_cells(&self) -> Option<ID> {
-        match self.request_planet(ExplorerToPlanet::AvailableEnergyCellRequest { explorer_id: self.id }) {
-            Ok(PlanetToExplorer::AvailableEnergyCellResponse { available_cells }) => Some(available_cells),
+        match self.request_planet(ExplorerToPlanet::AvailableEnergyCellRequest {
+            explorer_id: self.id,
+        }) {
+            Ok(PlanetToExplorer::AvailableEnergyCellResponse { available_cells }) => {
+                Some(available_cells)
+            }
             _ => None,
         }
     }
 
-    fn build_combine_request(&mut self, to_generate: ComplexResourceType) -> Result<ComplexResourceRequest, String> {
+    fn build_combine_request(
+        &mut self,
+        to_generate: ComplexResourceType,
+    ) -> Result<ComplexResourceRequest, String> {
         let result = match to_generate {
-            ComplexResourceType::Water => {
-                match (self.bag.take_basic(BasicResourceType::Hydrogen), self.bag.take_basic(BasicResourceType::Oxygen)) {
-                    (Some(h), Some(o)) => Ok((h, o)),
-                    (h, o) => Err((h, o, "missing Hydrogen and/or Oxygen in bag".to_string())),
-                }
-                    .and_then(|(h, o)| {
-                        let h = h.to_hydrogen().map_err(|e| (None, None, e))?;
-                        let o = o.to_oxygen().map_err(|e| (None, None, e))?;
-                        Ok(ComplexResourceRequest::Water(h, o))
-                    })
+            ComplexResourceType::Water => match (
+                self.bag.take_basic(BasicResourceType::Hydrogen),
+                self.bag.take_basic(BasicResourceType::Oxygen),
+            ) {
+                (Some(h), Some(o)) => Ok((h, o)),
+                (h, o) => Err((h, o, "missing Hydrogen and/or Oxygen in bag".to_string())),
             }
-            ComplexResourceType::Diamond => {
-                match (self.bag.take_basic(BasicResourceType::Carbon), self.bag.take_basic(BasicResourceType::Carbon)) {
-                    (Some(c1), Some(c2)) => Ok((c1, c2)),
-                    (c1, c2) => Err((c1, c2, "missing two Carbon in bag".to_string())),
-                }
-                    .and_then(|(c1, c2)| {
-                        let c1 = c1.to_carbon().map_err(|e| (None, None, e))?;
-                        let c2 = c2.to_carbon().map_err(|e| (None, None, e))?;
-                        Ok(ComplexResourceRequest::Diamond(c1, c2))
-                    })
+            .and_then(|(h, o)| {
+                let h = h.to_hydrogen().map_err(|e| (None, None, e))?;
+                let o = o.to_oxygen().map_err(|e| (None, None, e))?;
+                Ok(ComplexResourceRequest::Water(h, o))
+            }),
+            ComplexResourceType::Diamond => match (
+                self.bag.take_basic(BasicResourceType::Carbon),
+                self.bag.take_basic(BasicResourceType::Carbon),
+            ) {
+                (Some(c1), Some(c2)) => Ok((c1, c2)),
+                (c1, c2) => Err((c1, c2, "missing two Carbon in bag".to_string())),
             }
-            ComplexResourceType::Life => {
-                match (self.bag.take_complex(ComplexResourceType::Water), self.bag.take_basic(BasicResourceType::Carbon)) {
-                    (Some(w), Some(c)) => Ok((w, c)),
-                    (w, c) => Err((w, c, "missing Water and/or Carbon in bag".to_string())),
-                }
-                    .and_then(|(w, c)| {
-                        let w = w.to_water().map_err(|e| (None, None, e))?;
-                        let c = c.to_carbon().map_err(|e| (None, None, e))?;
-                        Ok(ComplexResourceRequest::Life(w, c))
-                    })
+            .and_then(|(c1, c2)| {
+                let c1 = c1.to_carbon().map_err(|e| (None, None, e))?;
+                let c2 = c2.to_carbon().map_err(|e| (None, None, e))?;
+                Ok(ComplexResourceRequest::Diamond(c1, c2))
+            }),
+            ComplexResourceType::Life => match (
+                self.bag.take_complex(ComplexResourceType::Water),
+                self.bag.take_basic(BasicResourceType::Carbon),
+            ) {
+                (Some(w), Some(c)) => Ok((w, c)),
+                (w, c) => Err((w, c, "missing Water and/or Carbon in bag".to_string())),
             }
-            ComplexResourceType::Robot => {
-                match (self.bag.take_basic(BasicResourceType::Silicon), self.bag.take_complex(ComplexResourceType::Life)) {
-                    (Some(s), Some(l)) => Ok((s, l)),
-                    (s, l) => Err((s, l, "missing Silicon and/or Life in bag".to_string())),
-                }
-                    .and_then(|(s, l)| {
-                        let s = s.to_silicon().map_err(|e| (None, None, e))?;
-                        let l = l.to_life().map_err(|e| (None, None, e))?;
-                        Ok(ComplexResourceRequest::Robot(s, l))
-                    })
+            .and_then(|(w, c)| {
+                let w = w.to_water().map_err(|e| (None, None, e))?;
+                let c = c.to_carbon().map_err(|e| (None, None, e))?;
+                Ok(ComplexResourceRequest::Life(w, c))
+            }),
+            ComplexResourceType::Robot => match (
+                self.bag.take_basic(BasicResourceType::Silicon),
+                self.bag.take_complex(ComplexResourceType::Life),
+            ) {
+                (Some(s), Some(l)) => Ok((s, l)),
+                (s, l) => Err((s, l, "missing Silicon and/or Life in bag".to_string())),
             }
-            ComplexResourceType::Dolphin => {
-                match (self.bag.take_complex(ComplexResourceType::Water), self.bag.take_complex(ComplexResourceType::Life)) {
-                    (Some(w), Some(l)) => Ok((w, l)),
-                    (w, l) => Err((w, l, "missing Water and/or Life in bag".to_string())),
-                }
-                    .and_then(|(w, l)| {
-                        let w = w.to_water().map_err(|e| (None, None, e))?;
-                        let l = l.to_life().map_err(|e| (None, None, e))?;
-                        Ok(ComplexResourceRequest::Dolphin(w, l))
-                    })
+            .and_then(|(s, l)| {
+                let s = s.to_silicon().map_err(|e| (None, None, e))?;
+                let l = l.to_life().map_err(|e| (None, None, e))?;
+                Ok(ComplexResourceRequest::Robot(s, l))
+            }),
+            ComplexResourceType::Dolphin => match (
+                self.bag.take_complex(ComplexResourceType::Water),
+                self.bag.take_complex(ComplexResourceType::Life),
+            ) {
+                (Some(w), Some(l)) => Ok((w, l)),
+                (w, l) => Err((w, l, "missing Water and/or Life in bag".to_string())),
             }
-            ComplexResourceType::AIPartner => {
-                match (self.bag.take_complex(ComplexResourceType::Robot), self.bag.take_complex(ComplexResourceType::Diamond)) {
-                    (Some(r), Some(d)) => Ok((r, d)),
-                    (r, d) => Err((r, d, "missing Robot and/or Diamond in bag".to_string())),
-                }
-                    .and_then(|(r, d)| {
-                        let r = r.to_robot().map_err(|e| (None, None, e))?;
-                        let d = d.to_diamond().map_err(|e| (None, None, e))?;
-                        Ok(ComplexResourceRequest::AIPartner(r, d))
-                    })
+            .and_then(|(w, l)| {
+                let w = w.to_water().map_err(|e| (None, None, e))?;
+                let l = l.to_life().map_err(|e| (None, None, e))?;
+                Ok(ComplexResourceRequest::Dolphin(w, l))
+            }),
+            ComplexResourceType::AIPartner => match (
+                self.bag.take_complex(ComplexResourceType::Robot),
+                self.bag.take_complex(ComplexResourceType::Diamond),
+            ) {
+                (Some(r), Some(d)) => Ok((r, d)),
+                (r, d) => Err((r, d, "missing Robot and/or Diamond in bag".to_string())),
             }
+            .and_then(|(r, d)| {
+                let r = r.to_robot().map_err(|e| (None, None, e))?;
+                let d = d.to_diamond().map_err(|e| (None, None, e))?;
+                Ok(ComplexResourceRequest::AIPartner(r, d))
+            }),
         };
 
-        result.map_err(|(a, b, msg): (Option<GenericResource>, Option<GenericResource>, String)| {
-            if let Some(a) = a {
-                self.bag.put_back(a);
-            }
-            if let Some(b) = b {
-                self.bag.put_back(b);
-            }
-            msg
-        })
+        result.map_err(
+            |(a, b, msg): (Option<GenericResource>, Option<GenericResource>, String)| {
+                if let Some(a) = a {
+                    self.bag.put_back(a);
+                }
+                if let Some(b) = b {
+                    self.bag.put_back(b);
+                }
+                msg
+            },
+        )
     }
 
     /// Learns what the current planet supports, once per planet. Free: no
@@ -595,7 +678,6 @@ impl Explorer {
             self.comms.probe_failed(Instant::now());
         }
     }
-
 
     // ==================== Autonomous AI: economy + planning ====================
 
@@ -651,21 +733,24 @@ impl Explorer {
 
         self.discover_current_planet();
 
-            // A task the known galaxy can no longer deliver (say, the only Silicon
-            // planet was destroyed) would never finish. Swap it, but only once there
-            // is nothing left to explore and some other task is possible.
-            if self.world.neighbors.contains_key(&self.current_planet_id)
-                && self.world.nearest_unexplored(self.current_planet_id).is_none()
-                && !Planner::is_feasible(target, &self.world, &self.bag.basic_counts(), &complex)
-            {
-                let alternatives = self.feasible_tasks();
-                if !alternatives.is_empty() {
-                    let new_task = alternatives[self.rng.random_range(0..alternatives.len())];
-                    logging::task_abandoned(self.id, target, new_task);
-                    self.task = Some(new_task);
-                    return;
-                }
+        // A task the known galaxy can no longer deliver (say, the only Silicon
+        // planet was destroyed) would never finish. Swap it, but only once there
+        // is nothing left to explore and some other task is possible.
+        if self.world.neighbors.contains_key(&self.current_planet_id)
+            && self
+                .world
+                .nearest_unexplored(self.current_planet_id)
+                .is_none()
+            && !Planner::is_feasible(target, &self.world, &self.bag.basic_counts(), &complex)
+        {
+            let alternatives = self.feasible_tasks();
+            if !alternatives.is_empty() {
+                let new_task = alternatives[self.rng.random_range(0..alternatives.len())];
+                logging::task_abandoned(self.id, target, new_task);
+                self.task = Some(new_task);
+                return;
             }
+        }
 
         let forecast = if self.blind_mode {
             ForecastMode::Blind {
@@ -673,7 +758,9 @@ impl Explorer {
                 days_spent_in_regime: self.clock.days_spent_in_regime(),
             }
         } else {
-            ForecastMode::Oracle { days_left_in_regime: self.clock.days_left_in_regime }
+            ForecastMode::Oracle {
+                days_left_in_regime: self.clock.days_left_in_regime,
+            }
         };
 
         let action = Planner::next_action(
@@ -724,7 +811,9 @@ impl Explorer {
     /// Plain-language name of an action for the status panel.
     fn describe(&self, action: &Action) -> String {
         match action {
-            Action::RequestNeighbors if self.world.neighbors.contains_key(&self.current_planet_id) => {
+            Action::RequestNeighbors
+                if self.world.neighbors.contains_key(&self.current_planet_id) =>
+            {
                 "Idle: nothing left to explore or do here".to_string()
             }
             Action::RequestNeighbors => "Asking for this planet's exits".to_string(),
@@ -777,11 +866,13 @@ impl Explorer {
             }
             Action::Move(dst) | Action::ExploreTowards(dst) => {
                 // Asking to travel is free; the move is paid when it is accepted.
-                let _ = self.to_orchestrator.send(ExplorerToOrchestrator::TravelToPlanetRequest {
-                    explorer_id: self.id,
-                    current_planet_id: self.current_planet_id,
-                    dst_planet_id: dst,
-                });
+                let _ = self
+                    .to_orchestrator
+                    .send(ExplorerToOrchestrator::TravelToPlanetRequest {
+                        explorer_id: self.id,
+                        current_planet_id: self.current_planet_id,
+                        dst_planet_id: dst,
+                    });
                 self.comms.start_travel(dst, Instant::now());
             }
             Action::Mine(resource) => match self.request_generate_resource(resource) {
@@ -801,13 +892,24 @@ impl Explorer {
 
             Action::RequestNeighbors => {
                 if self.world.neighbors.contains_key(&self.current_planet_id) {
-                    log::debug!("Explorer {}: idle on planet {}: task {:?}, exits {:?}, suppliers {:?}, combiners {:?}", self.id, self.current_planet_id, self.task, self.world.neighbors.get(&self.current_planet_id), self.world.resources, self.world.combos,);
+                    log::debug!(
+                        "Explorer {}: idle on planet {}: task {:?}, exits {:?}, suppliers {:?}, combiners {:?}",
+                        self.id,
+                        self.current_planet_id,
+                        self.task,
+                        self.world.neighbors.get(&self.current_planet_id),
+                        self.world.resources,
+                        self.world.combos,
+                    );
                 } else {
-                    let _ = self.to_orchestrator.send(ExplorerToOrchestrator::NeighborsRequest {
-                        explorer_id: self.id,
-                        current_planet_id: self.current_planet_id,
-                    });
-                    self.comms.start_neighbors(self.current_planet_id, Instant::now());
+                    let _ = self
+                        .to_orchestrator
+                        .send(ExplorerToOrchestrator::NeighborsRequest {
+                            explorer_id: self.id,
+                            current_planet_id: self.current_planet_id,
+                        });
+                    self.comms
+                        .start_neighbors(self.current_planet_id, Instant::now());
                 }
             }
         }

@@ -1,9 +1,11 @@
+use common_game::protocols::orchestrator_explorer::{
+    ExplorerToOrchestrator, OrchestratorToExplorer,
+};
+use common_game::protocols::planet_explorer::{ExplorerToPlanet, PlanetToExplorer};
+use crossbeam_channel::unbounded;
+use explorer_eco::{BagContent, create_explorer};
 use std::thread;
 use std::time::Duration;
-use crossbeam_channel::unbounded;
-use common_game::protocols::orchestrator_explorer::{ExplorerToOrchestrator, OrchestratorToExplorer};
-use common_game::protocols::planet_explorer::{ExplorerToPlanet, PlanetToExplorer};
-use explorer_eco::{create_explorer, BagContent};
 
 #[test]
 fn bag_content_request_returns_empty_bag_for_new_explorer() {
@@ -15,10 +17,18 @@ fn bag_content_request_returns_empty_bag_for_new_explorer() {
     let explorer = create_explorer(7, 100, rx_orch, tx_to_orch, rx_planet, tx_planet);
     let handle = thread::spawn(move || explorer.run());
 
-    tx_orch.send(OrchestratorToExplorer::BagContentRequest).unwrap();
+    tx_orch
+        .send(OrchestratorToExplorer::BagContentRequest)
+        .unwrap();
     let (id, bag) = loop {
-        match rx_from_explorer.recv_timeout(Duration::from_secs(3)).expect("no reply") {
-            ExplorerToOrchestrator::BagContentResponse { explorer_id, bag_content } => break (explorer_id, bag_content),
+        match rx_from_explorer
+            .recv_timeout(Duration::from_secs(3))
+            .expect("no reply")
+        {
+            ExplorerToOrchestrator::BagContentResponse {
+                explorer_id,
+                bag_content,
+            } => break (explorer_id, bag_content),
             _ => continue,
         }
     };

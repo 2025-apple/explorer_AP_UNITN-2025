@@ -44,7 +44,8 @@ impl EconomyClock {
     }
 
     pub fn days_spent_in_regime(&self) -> u32 {
-        self.regime_started_len.saturating_sub(self.days_left_in_regime)
+        self.regime_started_len
+            .saturating_sub(self.days_left_in_regime)
     }
 
     /// Advances one clock cycle. Call exactly once per `ai_step`.
@@ -99,4 +100,3 @@ impl Default for EconomyClock {
         Self::new()
     }
 }
-

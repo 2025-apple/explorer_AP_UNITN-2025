@@ -14,12 +14,14 @@ use common_game::components::resource::{
 };
 use common_game::components::rocket::Rocket;
 use common_game::components::sunray::Sunray;
-use common_game::protocols::orchestrator_explorer::{ExplorerToOrchestrator, OrchestratorToExplorer};
+use common_game::protocols::orchestrator_explorer::{
+    ExplorerToOrchestrator, OrchestratorToExplorer,
+};
 use common_game::protocols::orchestrator_planet::{OrchestratorToPlanet, PlanetToOrchestrator};
 use common_game::protocols::planet_explorer::{ExplorerToPlanet, PlanetToExplorer};
 use common_game::utils::ID;
-use crossbeam_channel::{unbounded, Receiver, Sender};
-use explorer_eco::{create_explorer, BagContent};
+use crossbeam_channel::{Receiver, Sender, unbounded};
+use explorer_eco::{BagContent, create_explorer};
 
 /// How long the test side waits for a planet to answer the "orchestrator".
 const PLANET_TIMEOUT: Duration = Duration::from_secs(2);
@@ -44,15 +46,31 @@ fn charged_cell_index(state: &PlanetState) -> usize {
 }
 
 impl PlanetAI for TestAI {
-    fn handle_sunray(&mut self, state: &mut PlanetState, _g: &Generator, _c: &Combinator, sunray: Sunray) {
+    fn handle_sunray(
+        &mut self,
+        state: &mut PlanetState,
+        _g: &Generator,
+        _c: &Combinator,
+        sunray: Sunray,
+    ) {
         let _ = state.charge_cell(sunray);
     }
 
-    fn handle_asteroid(&mut self, _s: &mut PlanetState, _g: &Generator, _c: &Combinator) -> Option<Rocket> {
+    fn handle_asteroid(
+        &mut self,
+        _s: &mut PlanetState,
+        _g: &Generator,
+        _c: &Combinator,
+    ) -> Option<Rocket> {
         None
     }
 
-    fn handle_internal_state_req(&mut self, state: &mut PlanetState, _g: &Generator, _c: &Combinator) -> DummyPlanetState {
+    fn handle_internal_state_req(
+        &mut self,
+        state: &mut PlanetState,
+        _g: &Generator,
+        _c: &Combinator,
+    ) -> DummyPlanetState {
         state.to_dummy()
     }
 
@@ -131,13 +149,19 @@ impl TestPlanet {
             (rx_orch, tx_orch),
             rx_expl,
         )
-            .expect("test planet rules must be valid for the planet type");
+        .expect("test planet rules must be valid for the planet type");
 
         let thread = thread::spawn(move || {
             let _ = planet.run();
         });
 
-        TestPlanet { id, to_planet, to_planet_orch, from_planet_orch, thread: Some(thread) }
+        TestPlanet {
+            id,
+            to_planet,
+            to_planet_orch,
+            from_planet_orch,
+            thread: Some(thread),
+        }
     }
 
     fn expect_reply(&self, what: &str) -> PlanetToOrchestrator {
@@ -147,7 +171,9 @@ impl TestPlanet {
     }
 
     pub fn start(&self) {
-        self.to_planet_orch.send(OrchestratorToPlanet::StartPlanetAI).unwrap();
+        self.to_planet_orch
+            .send(OrchestratorToPlanet::StartPlanetAI)
+            .unwrap();
         match self.expect_reply("StartPlanetAI") {
             PlanetToOrchestrator::StartPlanetAIResult { .. } => {}
             other => panic!("expected StartPlanetAIResult, got {other:?}"),
@@ -155,7 +181,9 @@ impl TestPlanet {
     }
 
     pub fn stop(&self) {
-        self.to_planet_orch.send(OrchestratorToPlanet::StopPlanetAI).unwrap();
+        self.to_planet_orch
+            .send(OrchestratorToPlanet::StopPlanetAI)
+            .unwrap();
         match self.expect_reply("StopPlanetAI") {
             PlanetToOrchestrator::StopPlanetAIResult { .. } => {}
             other => panic!("expected StopPlanetAIResult, got {other:?}"),
@@ -186,7 +214,10 @@ impl TestPlanet {
     /// into the same channel.
     pub fn admit_via(&self, explorer_id: ID, new_sender: Sender<PlanetToExplorer>) {
         self.to_planet_orch
-            .send(OrchestratorToPlanet::IncomingExplorerRequest { explorer_id, new_sender })
+            .send(OrchestratorToPlanet::IncomingExplorerRequest {
+                explorer_id,
+                new_sender,
+            })
             .unwrap();
         match self.expect_reply("IncomingExplorerRequest") {
             PlanetToOrchestrator::IncomingExplorerResponse { res: Ok(()), .. } => {}
@@ -243,7 +274,11 @@ pub fn spawn_explorer_with_task(
     spawn_with(explorer_id, planet, Some(task))
 }
 
-fn spawn_with(explorer_id: ID, planet: &TestPlanet, task: Option<ComplexResourceType>) -> RunningExplorer {
+fn spawn_with(
+    explorer_id: ID,
+    planet: &TestPlanet,
+    task: Option<ComplexResourceType>,
+) -> RunningExplorer {
     let (reply_tx, rx_planet) = unbounded::<PlanetToExplorer>();
     planet.admit_via(explorer_id, reply_tx.clone());
     let (to_explorer, rx_orch) = unbounded::<OrchestratorToExplorer>();
@@ -262,7 +297,13 @@ fn spawn_with(explorer_id: ID, planet: &TestPlanet, task: Option<ComplexResource
     }
     let thread = thread::spawn(move || explorer.run());
 
-    RunningExplorer { explorer_id, reply_tx, to_explorer, from_explorer, thread: Some(thread) }
+    RunningExplorer {
+        explorer_id,
+        reply_tx,
+        to_explorer,
+        from_explorer,
+        thread: Some(thread),
+    }
 }
 
 impl RunningExplorer {
@@ -320,7 +361,11 @@ pub struct Galaxy {
 
 impl Galaxy {
     pub fn new(outgoing_first: bool) -> Self {
-        Galaxy { planets: HashMap::new(), edges: HashMap::new(), outgoing_first }
+        Galaxy {
+            planets: HashMap::new(),
+            edges: HashMap::new(),
+            outgoing_first,
+        }
     }
 
     pub fn add_planet(&mut self, planet: TestPlanet) {
@@ -378,18 +423,29 @@ impl Galaxy {
                 eco.send(OrchestratorToExplorer::BagContentRequest);
                 last_poll = Instant::now();
             }
-            let Some(msg) = eco.next_message(Duration::from_millis(50)) else { continue };
+            let Some(msg) = eco.next_message(Duration::from_millis(50)) else {
+                continue;
+            };
             match msg {
-                ExplorerToOrchestrator::NeighborsRequest { current_planet_id, .. } => {
+                ExplorerToOrchestrator::NeighborsRequest {
+                    current_planet_id, ..
+                } => {
                     eco.send(OrchestratorToExplorer::NeighborsResponse {
                         neighbors: self.neighbors(current_planet_id),
                     });
                 }
-                ExplorerToOrchestrator::TravelToPlanetRequest { current_planet_id, dst_planet_id, .. } => {
+                ExplorerToOrchestrator::TravelToPlanetRequest {
+                    current_planet_id,
+                    dst_planet_id,
+                    ..
+                } => {
                     self.move_explorer(eco, current_planet_id, dst_planet_id);
                 }
                 ExplorerToOrchestrator::BagContentResponse { bag_content, .. } => {
-                    if bag_content.iter().any(|(kind, count)| kind == &want && *count > 0) {
+                    if bag_content
+                        .iter()
+                        .any(|(kind, count)| kind == &want && *count > 0)
+                    {
                         return true;
                     }
                 }

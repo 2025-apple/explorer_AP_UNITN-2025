@@ -33,11 +33,10 @@ mod time;
 mod wallet;
 mod world;
 
-pub use explorer::{create_explorer, create_explorer_oracle, Explorer,BagContent};
+pub use explorer::{BagContent, Explorer, create_explorer, create_explorer_oracle};
 
-
-#[cfg(test)]
-mod tests;
 mod comms;
 mod status;
+#[cfg(test)]
+mod tests;
 pub use status::{EcoStatus, StatusSink};

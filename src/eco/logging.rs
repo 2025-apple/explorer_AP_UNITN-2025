@@ -4,8 +4,8 @@
 use common_game::components::resource::{BasicResourceType, ComplexResourceType};
 use common_game::utils::ID;
 
-use super::regime::EconomyRegime;
 use super::planner::Action;
+use super::regime::EconomyRegime;
 
 // ---- Protocol / lifecycle ----
 
