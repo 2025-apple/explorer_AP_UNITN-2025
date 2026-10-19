@@ -29,7 +29,7 @@ fn bag_content_request_returns_empty_bag_for_new_explorer() {
                 explorer_id,
                 bag_content,
             } => break (explorer_id, bag_content),
-            _ => continue,
+            _ => {}
         }
     };
     assert_eq!(id, 7);

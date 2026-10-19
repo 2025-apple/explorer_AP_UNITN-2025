@@ -2,7 +2,9 @@
 //! `Explorer::build_combine_request` exactly — if that ever changes,
 //! update `recipe_of` to match.
 
+#[allow(clippy::enum_glob_use)]
 use common_game::components::resource::{BasicResourceType, ComplexResourceType};
+#[allow(clippy::enum_glob_use)]
 use std::collections::HashMap;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]

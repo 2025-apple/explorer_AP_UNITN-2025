@@ -42,7 +42,7 @@ fn supported_resource_request_reaches_planet_and_back() {
                 supported_resources,
                 ..
             } => break supported_resources,
-            _ => continue,
+            _ => {}
         }
     };
     assert_eq!(got, HashSet::from([BasicResourceType::Carbon]));

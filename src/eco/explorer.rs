@@ -268,6 +268,7 @@ impl Explorer {
 
     // ==================== Orchestrator -> Explorer ====================
 
+    #[allow(clippy::too_many_lines)]
     pub(super) fn handle_orchestrator_message(&mut self, msg: OrchestratorToExplorer) {
         logging::received_from_orchestrator(self.id, &msg);
         match msg {
@@ -830,6 +831,7 @@ impl Explorer {
         price == 0 || self.wallet.coins >= i64::from(price)
     }
 
+    #[allow(clippy::needless_pass_by_value)]
     pub(super) fn execute(&mut self, action: Action) {
         if !matches!(action, Action::RequestNeighbors) {
             logging::action_taken(self.id, self.current_planet_id, &action, self.wallet.coins);

@@ -119,6 +119,7 @@ impl Planner {
 
     /// First hop of a known BFS path, subject to the wait-vs-act check.
     /// `Stay` if we're already at the destination (path of length 1).
+    #[allow(clippy::needless_pass_by_value)]
     fn step_along(
         path: Vec<ID>,
         regime: EconomyRegime,
