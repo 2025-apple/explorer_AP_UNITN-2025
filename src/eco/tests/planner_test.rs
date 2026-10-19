@@ -192,7 +192,10 @@ fn acts_with_the_real_recession_prices_because_waiting_costs_more() {
     // Real prices: staying costs 7 per cycle, so waiting even one cycle
     // is dearer than mining now. The planner must act.
     let costs = EconomyRegime::Recession.costs();
-    assert!(matches!(act_in_recession(costs, 2), Action::Mine(B::Carbon)));
+    assert!(matches!(
+        act_in_recession(costs, 2),
+        Action::Mine(B::Carbon)
+    ));
 }
 
 #[test]
@@ -205,5 +208,8 @@ fn acts_when_the_recession_is_about_to_end_even_if_waiting_is_free() {
         combine: 6,
         daily_income: 16,
     };
-    assert!(matches!(act_in_recession(costs, 0), Action::Mine(B::Carbon)));
+    assert!(matches!(
+        act_in_recession(costs, 0),
+        Action::Mine(B::Carbon)
+    ));
 }
