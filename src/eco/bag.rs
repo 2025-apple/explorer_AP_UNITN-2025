@@ -31,7 +31,6 @@ impl Bag {
     }
 
     /// Removes and returns the first complex resource of the given type, if any.
-    /// VERIFY: assumes `ComplexResource::get_type() -> ComplexResourceType`
     /// exists, symmetric to the confirmed `BasicResource::get_type()`.
     pub fn take_complex(&mut self, want: ComplexResourceType) -> Option<GenericResource> {
         let idx = self.resources.iter().position(|r| match r {
