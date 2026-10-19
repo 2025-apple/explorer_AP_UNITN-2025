@@ -43,7 +43,7 @@ Unit tests cover the economy, planner, recipes, world model, communication and t
 Used from an orchestrator by adding it as a dependency and building it with the four channels of the protocol:
 
 ```toml
-explorer_eco = { git = "https://github.com/<org>/explorer_eco.git", branch = "master" }
+explorer_eco = { git = "https://github.com/luna4-ap2025/explorer_AP_UNITN-2025.git", branch = "master" }
 ```
 
 The GUI demo runs Eco inside `Bipolar-Orchestrator_eco_accommodated`, a copy of the Bipolar orchestrator and GUI adapted to show Eco's status panel.
