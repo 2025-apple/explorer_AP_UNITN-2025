@@ -1,5 +1,4 @@
-//! The `Explorer` struct itself: protocol handling (unchanged from the
-//! skeleton) plus the wiring that drives Eco's private economy and
+//! The `Explorer` struct itself: protocol handling (unchanged from the skeleton) plus the wiring that drives Eco's private economy and
 //! planner every `ai_step`.
 
 use std::time::{Duration, Instant};
@@ -80,9 +79,7 @@ pub fn create_explorer_oracle(
     )
 }
 
-/// Eco's link to whichever planet it's currently on. `None` until the
-/// first successful `MoveToPlanet` — see module docs on why the
-/// starting planet has no link.
+/// Set at creation (the starting planet’s channels) and replaced on every accepted MoveToPlanet
 #[derive(Default)]
 struct PlanetLink {
     to_planet: Option<Sender<ExplorerToPlanet>>,
@@ -898,7 +895,7 @@ impl Explorer {
         if self.wallet.is_in_debt() {
             logging::in_debt(self.id, self.wallet.coins);
             // Soft constraint only, per design: debt doesn't block acting.
-            // A daily income top-up (or the completion bonus) will bring
+            // A daily income top-up will bring
             // the balance back up; refusing to act here would just stall
             // the task without helping either objective.
         }

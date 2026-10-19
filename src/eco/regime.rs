@@ -17,8 +17,7 @@ pub struct CostTable {
 }
 
 impl EconomyRegime {
-    /// Hardcoded price tables from spec. Eco knows these outright — they
-    /// are constants of the world, not something announced by anyone.
+    /// Eco’s own price table (a design choice, not from the course spec)
     pub fn costs(self) -> CostTable {
         match self {
             EconomyRegime::Neutral => CostTable {
