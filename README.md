@@ -46,4 +46,4 @@ Used from an orchestrator by adding it as a dependency and building it with the 
 explorer_eco = { git = "https://github.com/<org>/explorer_eco.git", branch = "master" }
 ```
 
-The GUI demo runs Eco inside `bipolar_edit_trisha`, a copy of the Bipolar orchestrator and GUI adapted to show Eco's status panel.
+The GUI demo runs Eco inside `Bipolar-Orchestrator_eco_accommodated`, a copy of the Bipolar orchestrator and GUI adapted to show Eco's status panel.
