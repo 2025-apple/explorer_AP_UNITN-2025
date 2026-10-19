@@ -3,7 +3,7 @@ use std::collections::{HashMap, HashSet};
 use common_game::components::resource::{BasicResourceType as B, ComplexResourceType as C};
 
 use crate::eco::planner::{Action, Planner};
-use crate::eco::regime::{EconomyRegime, ForecastMode};
+use crate::eco::regime::{CostTable, EconomyRegime, ForecastMode};
 use crate::eco::world::WorldModel;
 
 fn act(
@@ -151,4 +151,59 @@ fn held_stock_makes_a_task_feasible_again() {
         &HashMap::new(),
         &held
     ));
+}
+
+/// Runs the planner in a Recession with a given price table and forecast,
+/// on a planet that supplies Carbon (so the natural action is to mine).
+fn act_in_recession(costs: CostTable, days_left: u32) -> Action {
+    let mut w = WorldModel::default();
+    w.record_resources(1, HashSet::from([B::Carbon]));
+    Planner::next_action(
+        C::Diamond,
+        1,
+        &w,
+        &HashMap::new(),
+        &HashMap::new(),
+        EconomyRegime::Recession,
+        costs,
+        &ForecastMode::Oracle {
+            days_left_in_regime: days_left,
+        },
+    )
+}
+
+#[test]
+fn waits_when_waiting_is_free_and_the_recession_will_end() {
+    // Invented prices: staying costs nothing. Mining now costs 5 (Recession),
+    // but after the recession it costs only 4 (Neutral). Two days left:
+    // waiting costs 100 cycles * 0 + 4 = 4, which is less than 5, so wait.
+    let costs = CostTable {
+        mv: 9,
+        stay: 0,
+        mine: 5,
+        combine: 6,
+        daily_income: 16,
+    };
+    assert!(matches!(act_in_recession(costs, 2), Action::Stay));
+}
+
+#[test]
+fn acts_with_the_real_recession_prices_because_waiting_costs_more() {
+    // Real prices: staying costs 7 per cycle, so waiting even one cycle
+    // is dearer than mining now. The planner must act.
+    let costs = EconomyRegime::Recession.costs();
+    assert!(matches!(act_in_recession(costs, 2), Action::Mine(B::Carbon)));
+}
+
+#[test]
+fn acts_when_the_recession_is_about_to_end_even_if_waiting_is_free() {
+    // Zero days left: there is nothing to gain by waiting, so act now.
+    let costs = CostTable {
+        mv: 9,
+        stay: 0,
+        mine: 5,
+        combine: 6,
+        daily_income: 16,
+    };
+    assert!(matches!(act_in_recession(costs, 0), Action::Mine(B::Carbon)));
 }
